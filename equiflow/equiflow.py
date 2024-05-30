@@ -20,14 +20,21 @@ class TableZero:
 
     if not isinstance(cols, list):
         raise ValueError("cols must be a list")
+    
+    if not isinstance(decimals, int) or decimals < 0:
+        raise ValueError("decimals must be a non-negative integer")
+    
+    if format not in ['%', 'N', 'N (%)']:
+        raise ValueError("format must be '%', 'N', or 'N (%)'")
+    
+    if not isinstance(missingness, bool):
+        raise ValueError("missingness must be a boolean")
 
     self.data = dfs
     self.columns = cols
     self.decimals = decimals
     self.format = format
     self.missingness = missingness
-
-    self.table = pd.DataFrame()
 
 
   def __get_original_uniques(self):
@@ -93,7 +100,6 @@ class TableZero:
   
   def __add_overall_counts(self, df, df_counts) -> pd.DataFrame(): # type: ignore
 
-    # df_counts.loc[('Overall', ' '), 'value'] = f"{len(df)} (100)"
     df_counts.loc[('Overall', ' '), 'value'] = f"{len(df)}"
 
     return df_counts
@@ -101,6 +107,8 @@ class TableZero:
 
   # change name to represent the fact that this view is for the distribution of the cohorts
   def view_cohorts(self):
+
+    table = pd.DataFrame()
 
     self.__get_original_uniques()
 
@@ -124,23 +132,57 @@ class TableZero:
       
 
       df_counts.rename(columns={'value': i}, inplace=True)
-      self.table = pd.concat([self.table, df_counts], axis=1)
+      table = pd.concat([table, df_counts], axis=1)
 
     # add super header
-    self.table = self.table.set_axis(
-        pd.MultiIndex.from_product([['Cohort'], self.table.columns]),
+    table = table.set_axis(
+        pd.MultiIndex.from_product([['Cohort'], table.columns]),
         axis=1)
 
     # renames indexes
-    self.table.index.names = ['Variable', 'Value']
+    table.index.names = ['Variable', 'Value']
 
     # reorder values of "Variable" (level 0) such that 'Overall' comes first
-    self.table = self.table.sort_index(level=0, key=lambda x: x == 'Overall',
+    table = table.sort_index(level=0, key=lambda x: x == 'Overall',
                                        ascending=False, sort_remaining=False)
 
-    return self.table
+    return table
   
   # to-do: add a view for the flow of the cohorts, with N, remove, new N
   def view_flow(self):
+
+    table = pd.DataFrame(columns=['Flow', '', 'N',])
+    rows = []
+
+    for i in range(len(self.data) - 1):
+
+      df_0 = self.data[i]
+      df_1 = self.data[i+1]
+      label = f"{i} to {i+1}"
+
+      rows.append({'Flow': label,
+                   '': 'Inital, n',
+                   'N': len(df_0)})
+      
+      rows.append({'Flow': label,
+                   '': 'Removed, n',
+                   'N': len(df_0) - len(df_1)})
+      
+      rows.append({'Flow': label,
+                   '': 'Result, n',
+                   'N': len(df_1)})
+
+    table = pd.DataFrame(rows)
+
+    # pivot table to have the flow as the columns
+    table = table.pivot(index='', columns='Flow', values='N')
+
+    return table
+      
+      
+
+
+
+
     pass
 
