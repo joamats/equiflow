@@ -12,7 +12,9 @@ class TableZero:
                dfs: list,
                cols: list,
                decimals: int=1,
-               format: str='N'):
+               format: str='N',
+               missingness: bool=True,
+               ):
 
     if not isinstance(dfs, list) or len(dfs) < 1:
         raise ValueError("dfs must be a list with length ≥ 1")
@@ -24,6 +26,7 @@ class TableZero:
     self.columns = cols
     self.decimals = decimals
     self.format = format
+    self.missingness = missingness
 
     self.table = pd.DataFrame()
 
@@ -42,7 +45,12 @@ class TableZero:
 
     o_uniques = self.original_uniques[col]
     counts = pd.DataFrame(columns=[col], index=o_uniques)
-    n = len(df)
+
+    # get the number of observations, based on whether we want to include missingness
+    if self.missingness:
+      n = len(df)
+    else:
+      n = len(df) - df[col].isnull().sum() # denominator will be the number of non-missing observations
 
     for o in o_uniques:
       if self.format == '%':
@@ -101,7 +109,8 @@ class TableZero:
 
         df_counts = pd.concat([df_counts, melted_counts], axis=0)
 
-        df_counts = self.add_missing_counts(df, col, df_counts)
+        if self.missingness:
+          df_counts = self.add_missing_counts(df, col, df_counts)
 
       df_counts.rename(columns={'value': i}, inplace=True)
       self.table = pd.concat([self.table, df_counts], axis=1)
