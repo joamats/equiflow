@@ -1,4 +1,3 @@
-
 """
 The equiflow package is used for creating "Equity-focused Cohort Section Flow Diagrams"
 for cohort selection in clinical and machine learning papers.
@@ -31,7 +30,7 @@ class TableZero:
     self.table = pd.DataFrame()
 
 
-  def get_original_uniques(self):
+  def __get_original_uniques(self):
 
     self.original_uniques = dict()
 
@@ -41,7 +40,7 @@ class TableZero:
 
 
 
-  def my_value_counts(self, df, col) -> pd.DataFrame(): # type: ignore
+  def __my_value_counts(self, df, col) -> pd.DataFrame(): # type: ignore
 
     o_uniques = self.original_uniques[col]
     counts = pd.DataFrame(columns=[col], index=o_uniques)
@@ -71,7 +70,7 @@ class TableZero:
     return counts 
   
 
-  def add_missing_counts(self, df, col, df_counts) -> pd.DataFrame(): # type: ignore
+  def __add_missing_counts(self, df, col, df_counts) -> pd.DataFrame(): # type: ignore
 
     n = len(df)
 
@@ -90,11 +89,20 @@ class TableZero:
       raise ValueError("format must be '%', 'N', or 'N (%)'")
 
     return df_counts
+  
+  
+  def __add_overall_counts(self, df, df_counts) -> pd.DataFrame(): # type: ignore
+
+    # df_counts.loc[('Overall', ' '), 'value'] = f"{len(df)} (100)"
+    df_counts.loc[('Overall', ' '), 'value'] = f"{len(df)}"
+
+    return df_counts
+
 
   # change name to represent the fact that this view is for the distribution of the cohorts
-  def table_one(self):
+  def view_cohorts(self):
 
-    self.get_original_uniques()
+    self.__get_original_uniques()
 
     for i, df in enumerate(self.data):
 
@@ -102,7 +110,7 @@ class TableZero:
 
       for col in self.columns:
 
-        counts = self.my_value_counts(df, col)
+        counts = self.__my_value_counts(df, col)
 
         melted_counts = pd.melt(counts.reset_index(), id_vars=['index']) \
                           .set_index(['variable','index'])
@@ -110,7 +118,10 @@ class TableZero:
         df_counts = pd.concat([df_counts, melted_counts], axis=0)
 
         if self.missingness:
-          df_counts = self.add_missing_counts(df, col, df_counts)
+          df_counts = self.__add_missing_counts(df, col, df_counts)
+        
+      df_counts = self.__add_overall_counts(df, df_counts)
+      
 
       df_counts.rename(columns={'value': i}, inplace=True)
       self.table = pd.concat([self.table, df_counts], axis=1)
@@ -120,9 +131,16 @@ class TableZero:
         pd.MultiIndex.from_product([['Cohort'], self.table.columns]),
         axis=1)
 
-
     # renames indexes
     self.table.index.names = ['Variable', 'Value']
 
+    # reorder values of "Variable" (level 0) such that 'Overall' comes first
+    self.table = self.table.sort_index(level=0, key=lambda x: x == 'Overall',
+                                       ascending=False, sort_remaining=False)
+
     return self.table
+  
+  # to-do: add a view for the flow of the cohorts, with N, remove, new N
+  def view_flow(self):
+    pass
 
