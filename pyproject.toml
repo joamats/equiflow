@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "equiflow"
+version = "0.1.0a2"
+authors = [
+  { name="João Matos", email="jcmatos@mit.edu" },
+]
+license = {file = "LICENSE"}
+description = "equiflow is a package to generate equity-focused cohort selection flow diagrams."
+readme = "README.md"
+requires-python = ">=3.9"
+keywords=["EquiFlow", "statistics", "cohort", "clinical research", "machine learning", "flow diagram", "equity"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "statsmodels",
+    "tabulate",
+    "Jinja2",
+    "openpyxl",
+]
+
+[tool.black]
+line-length = 119
+
+[tool.pyright]
+reportMissingImports = true
+
+[project.urls]
+homepage = "https://github.com/joamats/equiflow/"
+repository = "https://github.com/joamats/equiflow/"
