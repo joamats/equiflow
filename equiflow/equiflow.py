@@ -96,37 +96,37 @@ class TableZero:
                            df: pd.DataFrame(),
                            col: str,
                            format: str,
-                           df_counts: pd.DataFrame(),
+                           df_dists: pd.DataFrame(),
                            ) -> pd.DataFrame(): # type: ignore
 
     n = len(df)
 
     if format == '%':
-      df_counts.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self.decimals)
+      df_dists.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self.decimals)
     
     elif format == 'N':
-      df_counts.loc[(col,'Missing'),'value'] = df[col].isnull().sum()
+      df_dists.loc[(col,'Missing'),'value'] = df[col].isnull().sum()
 
     elif format == 'N (%)':
       n_missing = df[col].isnull().sum()
       perc_missing = df[col].isnull().sum() / n * 100
-      df_counts.loc[(col,'Missing'),'value'] = f"{n_missing} ({(perc_missing).round(self.decimals)})"
+      df_dists.loc[(col,'Missing'),'value'] = f"{n_missing} ({(perc_missing).round(self.decimals)})"
 
     else:
       raise ValueError("format must be '%', 'N', or 'N (%)'")
 
-    return df_counts
+    return df_dists
   
   
   # method to add overall counts to the table
   def __add_overall_counts(self,
                            df,
-                           df_counts
+                           df_dists
                            ) -> pd.DataFrame(): # type: ignore
 
-    df_counts.loc[('Overall', ' '), 'value'] = f"{len(df)}"
+    df_dists.loc[('Overall', ' '), 'value'] = f"{len(df)}"
 
-    return df_counts
+    return df_dists
 
 
   # first view: cohort flow numbers
@@ -162,14 +162,23 @@ class TableZero:
 
   # second view: cohort flow distributions
   def view_cohorts(self,
-                   cols: list,
+                   categorical: list=[],
+                   normal: list=[],
+                   nonnormal: list=[],
                    decimals: int=1,
                    format: str='N',
                    missingness: bool=True, 
       ):
 
-    if not isinstance(cols, list):
-        raise ValueError("cols must be a list")
+    # check if the inputs are valid
+    if not isinstance(categorical, list):
+        raise ValueError("categorical must be a list")
+
+    if not isinstance(normal, list):
+        raise ValueError("normal must be a list")
+    
+    if not isinstance(nonnormal, list):
+        raise ValueError("nonnormal must be a list")
     
     if not isinstance(decimals, int) or decimals < 0:
         raise ValueError("decimals must be a non-negative integer")
@@ -180,33 +189,54 @@ class TableZero:
     if not isinstance(missingness, bool):
         raise ValueError("missingness must be a boolean")
     
+    # allow for decimals to be set here or in the constructor
     self.decimals = decimals
 
     table = pd.DataFrame()
 
-    original_uniques = self.__get_original_uniques(cols)
+    # get the unique values, before any exclusion, for categorical variables
+    original_uniques = self.__get_original_uniques(categorical)
 
     for i, df in enumerate(self.data):
 
-      df_counts = pd.DataFrame()
+      df_dists = pd.DataFrame()
 
-      for col in cols:
+      # get distribution for categorical variables
+      for col in categorical:
 
         counts = self.__my_value_counts(df, original_uniques, col, missingness, format)
 
         melted_counts = pd.melt(counts.reset_index(), id_vars=['index']) \
                           .set_index(['variable','index'])
 
-        df_counts = pd.concat([df_counts, melted_counts], axis=0)
+        df_dists = pd.concat([df_dists, melted_counts], axis=0)
 
         if missingness:
-          df_counts = self.__add_missing_counts(df, col, format, df_counts)
+          df_dists = self.__add_missing_counts(df, col, format, df_dists)
+
+      # get distribution for normal variables
+      for col in normal:
+          
+          col_mean = np.round(df[col].mean(), self.decimals)
+          col_std = np.round(df[col].std(), self.decimals)
+  
+          df_dists.loc[(col, ' '), 'value'] = f"{col_mean} ± {col_std}"
         
-      df_counts = self.__add_overall_counts(df, df_counts)
+      # get distribution for nonnormal variables
+      for col in nonnormal:
+
+        col_median = np.round(df[col].median(), self.decimals)
+        col_q1 = np.round(df[col].quantile(0.25), self.decimals)
+        col_q3 = np.round(df[col].quantile(0.75), self.decimals)
+
+        df_dists.loc[(col, ' '), 'value'] = f"{col_median} [{col_q1}, {col_q3}]"
+
+
+      df_dists = self.__add_overall_counts(df, df_dists)
       
 
-      df_counts.rename(columns={'value': i}, inplace=True)
-      table = pd.concat([table, df_counts], axis=1)
+      df_dists.rename(columns={'value': i}, inplace=True)
+      table = pd.concat([table, df_dists], axis=1)
 
     # add super header
     table = table.set_axis(
@@ -218,7 +248,7 @@ class TableZero:
 
     # reorder values of "Variable" (level 0) such that 'Overall' comes first
     table = table.sort_index(level=0, key=lambda x: x == 'Overall',
-                                       ascending=False, sort_remaining=False)
+                             ascending=False, sort_remaining=False)
 
     return table
   
