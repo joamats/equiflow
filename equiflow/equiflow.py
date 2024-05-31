@@ -21,6 +21,28 @@ class TableZero:
     self.data = dfs
     self.decimals = decimals
 
+    self.__clean_missing()
+
+
+  # method to categorize missing values under the same label
+  def __clean_missing(self): 
+    
+    for i, df in enumerate(self.data):
+
+      # map all missing values possibilities to Null
+      df = df.replace(['', ' ', 'NA', 'N/A', 'na', 'n/a',
+                      'NA ', 'N/A ', 'na ', 'n/a ', 'NaN',
+                      'nan', 'NAN', 'Nan', 'N/A;', '<NA>',
+                      "_", '__', '___', '____', '_____',
+                      'NaT', 'None', 'none', 'NONE', 'Null',
+                      'null', 'NULL', 'missing', 'Missing',
+                      np.nan, pd.NA], None)
+      
+      # replace
+      self.data[i] = df
+
+
+  # method to get the unique values, before any exclusion (at i=0)
   def __get_original_uniques(self, cols):
 
     original_uniques = dict()
@@ -32,7 +54,7 @@ class TableZero:
     return original_uniques
 
 
-
+  # method to get the value counts for a given column
   def __my_value_counts(self,
                         df: pd.DataFrame(),
                         original_uniques: dict,
@@ -69,6 +91,7 @@ class TableZero:
     return counts 
   
 
+  # method to add missing counts to the table
   def __add_missing_counts(self,
                            df: pd.DataFrame(),
                            col: str,
@@ -95,6 +118,7 @@ class TableZero:
     return df_counts
   
   
+  # method to add overall counts to the table
   def __add_overall_counts(self,
                            df,
                            df_counts
@@ -103,6 +127,7 @@ class TableZero:
     df_counts.loc[('Overall', ' '), 'value'] = f"{len(df)}"
 
     return df_counts
+
 
   # first view: cohort flow numbers
   def view_flow(self):
@@ -133,7 +158,6 @@ class TableZero:
     table = table.pivot(index='', columns='Cohort Flow', values='N')
 
     return table
-
 
 
   # second view: cohort flow distributions
