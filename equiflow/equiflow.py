@@ -166,7 +166,7 @@ class TableZero:
                    normal: list=[],
                    nonnormal: list=[],
                    decimals: int=1,
-                   format: str='N',
+                   format: str='N (%)',
                    missingness: bool=True, 
       ):
 
@@ -216,20 +216,28 @@ class TableZero:
 
       # get distribution for normal variables
       for col in normal:
+          df[col] = pd.to_numeric(df[col], errors='raise')
           
           col_mean = np.round(df[col].mean(), self.decimals)
           col_std = np.round(df[col].std(), self.decimals)
   
           df_dists.loc[(col, ' '), 'value'] = f"{col_mean} ± {col_std}"
+          
+          if missingness:
+            df_dists = self.__add_missing_counts(df, col, format, df_dists)
         
       # get distribution for nonnormal variables
       for col in nonnormal:
+        df[col] = pd.to_numeric(df[col], errors='raise')
 
         col_median = np.round(df[col].median(), self.decimals)
         col_q1 = np.round(df[col].quantile(0.25), self.decimals)
         col_q3 = np.round(df[col].quantile(0.75), self.decimals)
 
         df_dists.loc[(col, ' '), 'value'] = f"{col_median} [{col_q1}, {col_q3}]"
+
+        if missingness:
+            df_dists = self.__add_missing_counts(df, col, format, df_dists)
 
 
       df_dists = self.__add_overall_counts(df, df_dists)
