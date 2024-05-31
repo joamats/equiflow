@@ -128,6 +128,28 @@ class TableZero:
 
 
     return df_dists
+  
+  # method to add label_suffix to the table
+  def __add_label_suffix(self,
+                         col: str,
+                         df_dists: pd.DataFrame(),
+                         format: str,
+                         ) -> pd.DataFrame(): # type: ignore
+
+    new_col = col + format
+    df_dists = df_dists.rename(index={col: new_col}) 
+
+    return df_dists
+  
+  # method to rename columns
+  def __rename_columns(self,
+                       df_dists: pd.DataFrame(),
+                       rename: dict,
+                       col: str,
+                      ) -> pd.DataFrame():
+    
+    return rename[col], df_dists.rename(index={col: rename[col]})
+    
 
 
   # first view: cohort flow numbers
@@ -170,6 +192,7 @@ class TableZero:
                    format: str='N (%)',
                    missingness: bool=True, 
                    label_suffix: bool=True,
+                   rename: dict={},
       ):
 
     # check if the inputs are valid
@@ -216,9 +239,12 @@ class TableZero:
         if missingness:
           df_dists = self.__add_missing_counts(df, col, format, df_dists)
 
+        # rename if applicable
+        if col in rename.keys():
+          col, df_dists = self.__rename_columns(df_dists, rename, col)
+
         if label_suffix:
-            new_col = col + ', ' + format
-            df_dists = df_dists.rename(index={col: new_col}) 
+            df_dists = self.__add_label_suffix(col, df_dists, ', ' + format)
           
 
       # get distribution for normal variables
@@ -233,9 +259,11 @@ class TableZero:
           if missingness:
             df_dists = self.__add_missing_counts(df, col, format, df_dists)
 
+          if col in rename.keys():
+            col, df_dists = self.__rename_columns(df_dists, rename, col)
+
           if label_suffix:
-            new_col = col + ', Mean ± SD'
-            df_dists = df_dists.rename(index={col: new_col}) 
+            df_dists = self.__add_label_suffix(col, df_dists, ', Mean ± SD')
         
       # get distribution for nonnormal variables
       for col in nonnormal:
@@ -250,9 +278,11 @@ class TableZero:
         if missingness:
           df_dists = self.__add_missing_counts(df, col, format, df_dists)
         
+        if col in rename.keys():
+          col, df_dists = self.__rename_columns(df_dists, rename, col)
+
         if label_suffix:
-          new_col = col + ', Median [IQR]'
-          df_dists = df_dists.rename(index={col: new_col})
+          df_dists = self.__add_label_suffix(col, df_dists, ', Median [IQR]')
 
 
       df_dists = self.__add_overall_counts(df, df_dists)
