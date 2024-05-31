@@ -168,6 +168,7 @@ class TableZero:
                    decimals: int=1,
                    format: str='N (%)',
                    missingness: bool=True, 
+                   label_suffix: bool=True,
       ):
 
     # check if the inputs are valid
@@ -214,6 +215,11 @@ class TableZero:
         if missingness:
           df_dists = self.__add_missing_counts(df, col, format, df_dists)
 
+        if label_suffix:
+            new_col = col + ', ' + format
+            df_dists = df_dists.rename(index={col: new_col}) 
+          
+
       # get distribution for normal variables
       for col in normal:
           df[col] = pd.to_numeric(df[col], errors='raise')
@@ -225,6 +231,10 @@ class TableZero:
           
           if missingness:
             df_dists = self.__add_missing_counts(df, col, format, df_dists)
+
+          if label_suffix:
+            new_col = col + ', Mean ± SD'
+            df_dists = df_dists.rename(index={col: new_col}) 
         
       # get distribution for nonnormal variables
       for col in nonnormal:
@@ -237,7 +247,11 @@ class TableZero:
         df_dists.loc[(col, ' '), 'value'] = f"{col_median} [{col_q1}, {col_q3}]"
 
         if missingness:
-            df_dists = self.__add_missing_counts(df, col, format, df_dists)
+          df_dists = self.__add_missing_counts(df, col, format, df_dists)
+        
+        if label_suffix:
+          new_col = col + ', Median [IQR]'
+          df_dists = df_dists.rename(index={col: new_col})
 
 
       df_dists = self.__add_overall_counts(df, df_dists)
