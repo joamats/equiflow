@@ -5,29 +5,27 @@ for cohort selection in clinical and machine learning papers.
 
 import numpy as np
 import pandas as pd
+from typing import Optional, Union
 
-class TableZero:
+
+class EquiFlow:
   def __init__(self,
-               dfs: list,
-               decimals: int=1,
-               ):
-
-    if not isinstance(dfs, list) or len(dfs) < 1:
-        raise ValueError("dfs must be a list with length ≥ 1")
+               dfs: list) -> None:
     
-    if not isinstance(decimals, int) or decimals < 0:
-        raise ValueError("decimals must be a non-negative integer")
-
-    self.data = dfs
-    self.decimals = decimals
+    if not isinstance(dfs, list) or len(dfs) < 1:
+      raise ValueError("dfs must be a list with length ≥ 1")
+    
+    self._dfs = dfs
 
     self.__clean_missing()
+
+    # to-do: add alternative construction if dfs is a single dataframe
 
 
   # method to categorize missing values under the same label
   def __clean_missing(self): 
     
-    for i, df in enumerate(self.data):
+    for i, df in enumerate(self._dfs):
 
       # map all missing values possibilities to Null
       df = df.replace(['', ' ', 'NA', 'N/A', 'na', 'n/a',
@@ -37,10 +35,136 @@ class TableZero:
                       'NaT', 'None', 'none', 'NONE', 'Null',
                       'null', 'NULL', 'missing', 'Missing',
                       np.nan, pd.NA], None)
+  
+    self._dfs[i] = df
       
-      # replace
-      self.data[i] = df
 
+ 
+  def add_exclusion(self, mask, label):
+    pass
+
+  def table_flows(self, *args, **kwargs):
+    table = TableFlows(self._dfs, *args, **kwargs)
+    return table.build()
+
+  def table_characteristics(self, *args, **kwargs) -> pd.DataFrame:
+    table = TableCharacteristics(self._dfs, *args, **kwargs)
+    return table.build()
+
+  # third view: cohort flow distribution differences
+  def table_drifts(self):
+    pass
+  
+
+  def plot_flows(self):
+    pass
+
+  def write_report(self):
+    pass
+
+
+class TableFlows:
+  def __init__(self,
+               dfs: list,
+               label_suffix: Optional[bool] = True,
+               ) -> None:
+
+    if not isinstance(dfs, list) or len(dfs) < 1:
+      raise ValueError("dfs must be a list with length ≥ 1")
+    
+    if not isinstance(label_suffix, bool):
+      raise ValueError("label_suffix must be a boolean")
+    
+    self._dfs = dfs
+    self._label_suffix = label_suffix
+
+  def build(self):
+
+    table = pd.DataFrame(columns=['Cohort Flow', '', 'N',])
+    rows = []
+
+    for i in range(len(self._dfs) - 1):
+
+      df_0 = self._dfs[i]
+      df_1 = self._dfs[i+1]
+      label = f"{i} to {i+1}"
+
+      if self._label_suffix:
+        suffix = ', n'
+
+      else:
+        suffix = ''
+
+      rows.append({'Cohort Flow': label,
+                   '': 'Inital' + suffix,
+                   'N': f"{len(df_0):,}"})
+      
+      rows.append({'Cohort Flow': label,
+                   '': 'Removed' + suffix,
+                   'N': f"{len(df_0) - len(df_1):,}"})
+      
+      rows.append({'Cohort Flow': label,
+                   '': 'Result' + suffix,
+                   'N': f"{len(df_1):,}"})
+
+    table = pd.DataFrame(rows)
+
+    table = table.pivot(index='', columns='Cohort Flow', values='N')
+
+    return table
+
+
+
+class TableCharacteristics:
+  def __init__(self,
+               dfs: list,
+               categorical: Optional[list] = None,
+               normal: Optional[list] = None,
+               nonnormal: Optional[list] = None,
+               decimals: Optional[int] = 1,
+               format: Optional[str] = 'N (%)',
+               missingness: Optional[bool] = True,
+               label_suffix: Optional[bool] = True,
+               rename: Optional[dict] = None,
+               ) -> None:
+    
+    if not isinstance(dfs, list) or len(dfs) < 1:
+      raise ValueError("dfs must be a list with length ≥ 1")
+    
+    if not isinstance(categorical, list):
+        raise ValueError("categorical must be a list")
+
+    if not isinstance(normal, list):
+        raise ValueError("normal must be a list")
+    
+    if not isinstance(nonnormal, list):
+        raise ValueError("nonnormal must be a list")
+    
+    if not isinstance(decimals, int) or decimals < 0:
+        raise ValueError("decimals must be a non-negative integer")
+    
+    if format not in ['%', 'N', 'N (%)']:
+        raise ValueError("format must be '%', 'N', or 'N (%)'")
+    
+    if not isinstance(missingness, bool):
+        raise ValueError("missingness must be a boolean")
+    
+    if not isinstance(label_suffix, bool):
+        raise ValueError("label_suffix must be a boolean")
+    
+    if not isinstance(rename, dict):
+        raise ValueError("rename must be a dictionary")
+    
+    self._dfs = dfs
+    self._categorical = categorical
+    self._normal = normal
+    self._nonnormal = nonnormal
+    self._decimals = decimals
+    self._missingness = missingness
+    self._format = format
+    self._label_suffix = label_suffix
+    self._rename = rename
+    
 
   # method to get the unique values, before any exclusion (at i=0)
   def __get_original_uniques(self, cols):
@@ -49,7 +173,7 @@ class TableZero:
 
     # get uniques values ignoring NaNs
     for c in cols:
-      original_uniques[c] = self.data[0][c].dropna().unique()
+      original_uniques[c] = self._dfs[0][c].dropna().unique()
 
     return original_uniques
 
@@ -59,29 +183,27 @@ class TableZero:
                         df: pd.DataFrame(),
                         original_uniques: dict,
                         col: str,
-                        missingness: bool=True,
-                        format: str='N',
                         ) -> pd.DataFrame(): # type: ignore
 
     o_uniques = original_uniques[col]
     counts = pd.DataFrame(columns=[col], index=o_uniques)
 
     # get the number of observations, based on whether we want to include missingness
-    if missingness:
+    if self._missingness:
       n = len(df)
     else:
       n = len(df) - df[col].isnull().sum() # denominator will be the number of non-missing observations
 
     for o in o_uniques:
-      if format == '%':
-        counts.loc[o,col] = ((df[col] == o).sum() / n * 100).round(self.decimals)
+      if self._format == '%':
+        counts.loc[o,col] = ((df[col] == o).sum() / n * 100).round(self._decimals)
   
-      elif format == 'N':
+      elif self._format == 'N':
         counts.loc[o,col] = f"{(df[col] == o).sum():,}"
    
-      elif format == 'N (%)':
+      elif self._format == 'N (%)':
         n_counts = (df[col] == o).sum()
-        perc_counts = (n_counts / n * 100).round(self.decimals)
+        perc_counts = (n_counts / n * 100).round(self._decimals)
         counts.loc[o,col] = f"{n_counts:,} ({perc_counts})"
 
       else:
@@ -95,22 +217,21 @@ class TableZero:
   def __add_missing_counts(self,
                            df: pd.DataFrame(),
                            col: str,
-                           format: str,
                            df_dists: pd.DataFrame(),
                            ) -> pd.DataFrame(): # type: ignore
 
     n = len(df)
 
-    if format == '%':
-      df_dists.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self.decimals)
+    if self._format == '%':
+      df_dists.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self._decimals)
     
-    elif format == 'N':
+    elif self._format == 'N':
       df_dists.loc[(col,'Missing'),'value'] = f"{df[col].isnull().sum():,}"
 
-    elif format == 'N (%)':
+    elif self._format == 'N (%)':
       n_missing = df[col].isnull().sum()
       perc_missing = df[col].isnull().sum() / n * 100
-      df_dists.loc[(col,'Missing'),'value'] = f"{n_missing:,} ({(perc_missing).round(self.decimals)})"
+      df_dists.loc[(col,'Missing'),'value'] = f"{n_missing:,} ({(perc_missing).round(self._decimals)})"
 
     else:
       raise ValueError("format must be '%', 'N', or 'N (%)'")
@@ -133,10 +254,10 @@ class TableZero:
   def __add_label_suffix(self,
                          col: str,
                          df_dists: pd.DataFrame(),
-                         format: str,
+                         suffix: str,
                          ) -> pd.DataFrame(): # type: ignore
 
-    new_col = col + format
+    new_col = col + suffix
     df_dists = df_dists.rename(index={col: new_col}) 
 
     return df_dists
@@ -144,150 +265,83 @@ class TableZero:
   # method to rename columns
   def __rename_columns(self,
                        df_dists: pd.DataFrame(),
-                       rename: dict,
                        col: str,
                       ) -> pd.DataFrame():
     
-    return rename[col], df_dists.rename(index={col: rename[col]})
-    
-
-
-  # first view: cohort flow numbers
-  def view_flow(self):
-    
-    table = pd.DataFrame(columns=['Cohort Flow', '', 'N',])
-    rows = []
-
-    for i in range(len(self.data) - 1):
-
-      df_0 = self.data[i]
-      df_1 = self.data[i+1]
-      label = f"{i} to {i+1}"
-
-      rows.append({'Cohort Flow': label,
-                   '': 'Inital, n',
-                   'N': f"{len(df_0):,}"})
-      
-      rows.append({'Cohort Flow': label,
-                   '': 'Removed, n',
-                   'N': f"{len(df_0) - len(df_1):,}"})
-      
-      rows.append({'Cohort Flow': label,
-                   '': 'Result, n',
-                   'N': f"{len(df_1):,}"})
-
-    table = pd.DataFrame(rows)
-
-    table = table.pivot(index='', columns='Cohort Flow', values='N')
-
-    return table
-
-
-  # second view: cohort flow distributions
-  def view_cohorts(self,
-                   categorical: list=[],
-                   normal: list=[],
-                   nonnormal: list=[],
-                   decimals: int=1,
-                   format: str='N (%)',
-                   missingness: bool=True, 
-                   label_suffix: bool=True,
-                   rename: dict={},
-      ):
-
-    # check if the inputs are valid
-    if not isinstance(categorical, list):
-        raise ValueError("categorical must be a list")
-
-    if not isinstance(normal, list):
-        raise ValueError("normal must be a list")
-    
-    if not isinstance(nonnormal, list):
-        raise ValueError("nonnormal must be a list")
-    
-    if not isinstance(decimals, int) or decimals < 0:
-        raise ValueError("decimals must be a non-negative integer")
-    
-    if format not in ['%', 'N', 'N (%)']:
-        raise ValueError("format must be '%', 'N', or 'N (%)'")
-    
-    if not isinstance(missingness, bool):
-        raise ValueError("missingness must be a boolean")
-    
-    # allow for decimals to be set here or in the constructor
-    self.decimals = decimals
+    return self._rename[col], df_dists.rename(index={col: self._rename[col]})
+  
+  def build(self):
 
     table = pd.DataFrame()
 
     # get the unique values, before any exclusion, for categorical variables
-    original_uniques = self.__get_original_uniques(categorical)
+    original_uniques = self.__get_original_uniques(self._categorical)
 
-    for i, df in enumerate(self.data):
+    for i, df in enumerate(self._dfs):
 
       df_dists = pd.DataFrame()
 
       # get distribution for categorical variables
-      for col in categorical:
+      for col in self._categorical:
 
-        counts = self.__my_value_counts(df, original_uniques, col, missingness, format)
+        counts = self.__my_value_counts(df, original_uniques, col)
 
         melted_counts = pd.melt(counts.reset_index(), id_vars=['index']) \
                           .set_index(['variable','index'])
 
         df_dists = pd.concat([df_dists, melted_counts], axis=0)
 
-        if missingness:
-          df_dists = self.__add_missing_counts(df, col, format, df_dists)
+        if self._missingness:
+          df_dists = self.__add_missing_counts(df, col, df_dists)
 
         # rename if applicable
-        if col in rename.keys():
-          col, df_dists = self.__rename_columns(df_dists, rename, col)
+        if col in self._rename.keys():
+          col, df_dists = self.__rename_columns(df_dists, col)
 
-        if label_suffix:
-            df_dists = self.__add_label_suffix(col, df_dists, ', ' + format)
+        if self._label_suffix:
+            df_dists = self.__add_label_suffix(col, df_dists, ', ' + self._format)
           
 
       # get distribution for normal variables
-      for col in normal:
-          df[col] = pd.to_numeric(df[col], errors='raise')
+      for col in self._normal:
+          df.loc[:,col] = pd.to_numeric(df[col], errors='raise')
           
-          col_mean = np.round(df[col].mean(), self.decimals)
-          col_std = np.round(df[col].std(), self.decimals)
+          col_mean = np.round(df[col].mean(), self._decimals)
+          col_std = np.round(df[col].std(), self._decimals)
   
           df_dists.loc[(col, ' '), 'value'] = f"{col_mean} ± {col_std}"
           
-          if missingness:
-            df_dists = self.__add_missing_counts(df, col, format, df_dists)
+          if self._missingness:
+            df_dists = self.__add_missing_counts(df, col, df_dists)
 
-          if col in rename.keys():
-            col, df_dists = self.__rename_columns(df_dists, rename, col)
+          if col in self._rename.keys():
+            col, df_dists = self.__rename_columns(df_dists, col)
 
-          if label_suffix:
+          if self._label_suffix:
             df_dists = self.__add_label_suffix(col, df_dists, ', Mean ± SD')
         
       # get distribution for nonnormal variables
-      for col in nonnormal:
-        df[col] = pd.to_numeric(df[col], errors='raise')
+      for col in self._nonnormal:
+        df.loc[:,col] = pd.to_numeric(df[col], errors='raise')
 
-        col_median = np.round(df[col].median(), self.decimals)
-        col_q1 = np.round(df[col].quantile(0.25), self.decimals)
-        col_q3 = np.round(df[col].quantile(0.75), self.decimals)
+        col_median = np.round(df[col].median(), self._decimals)
+        col_q1 = np.round(df[col].quantile(0.25), self._decimals)
+        col_q3 = np.round(df[col].quantile(0.75), self._decimals)
 
         df_dists.loc[(col, ' '), 'value'] = f"{col_median} [{col_q1}, {col_q3}]"
 
-        if missingness:
-          df_dists = self.__add_missing_counts(df, col, format, df_dists)
+        if self._missingness:
+          df_dists = self.__add_missing_counts(df, col, df_dists)
         
-        if col in rename.keys():
-          col, df_dists = self.__rename_columns(df_dists, rename, col)
+        if col in self._rename.keys():
+          col, df_dists = self.__rename_columns(df_dists, col)
 
-        if label_suffix:
+        if self._label_suffix:
           df_dists = self.__add_label_suffix(col, df_dists, ', Median [IQR]')
 
 
       df_dists = self.__add_overall_counts(df, df_dists)
-      
-
+    
       df_dists.rename(columns={'value': i}, inplace=True)
       table = pd.concat([table, df_dists], axis=1)
 
@@ -304,10 +358,4 @@ class TableZero:
                              ascending=False, sort_remaining=False)
 
     return table
-  
-  
-  # third view: cohort flow distribution differences
-  def view_differences(self):
-    pass
-      
-      
+    
