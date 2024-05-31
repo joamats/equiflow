@@ -77,12 +77,12 @@ class TableZero:
         counts.loc[o,col] = ((df[col] == o).sum() / n * 100).round(self.decimals)
   
       elif format == 'N':
-        counts.loc[o,col] = (df[col] == o).sum()
+        counts.loc[o,col] = f"{(df[col] == o).sum():,}"
    
       elif format == 'N (%)':
         n_counts = (df[col] == o).sum()
         perc_counts = (n_counts / n * 100).round(self.decimals)
-        counts.loc[o,col] = f"{n_counts} ({perc_counts})"
+        counts.loc[o,col] = f"{n_counts:,} ({perc_counts})"
 
       else:
         raise ValueError("format must be '%', 'N', or 'N (%)'")
@@ -105,12 +105,12 @@ class TableZero:
       df_dists.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self.decimals)
     
     elif format == 'N':
-      df_dists.loc[(col,'Missing'),'value'] = df[col].isnull().sum()
+      df_dists.loc[(col,'Missing'),'value'] = f"{df[col].isnull().sum():,}"
 
     elif format == 'N (%)':
       n_missing = df[col].isnull().sum()
       perc_missing = df[col].isnull().sum() / n * 100
-      df_dists.loc[(col,'Missing'),'value'] = f"{n_missing} ({(perc_missing).round(self.decimals)})"
+      df_dists.loc[(col,'Missing'),'value'] = f"{n_missing:,} ({(perc_missing).round(self.decimals)})"
 
     else:
       raise ValueError("format must be '%', 'N', or 'N (%)'")
@@ -124,7 +124,8 @@ class TableZero:
                            df_dists
                            ) -> pd.DataFrame(): # type: ignore
 
-    df_dists.loc[('Overall', ' '), 'value'] = f"{len(df)}"
+    df_dists.loc[('Overall', ' '), 'value'] = f"{len(df):,}"
+
 
     return df_dists
 
@@ -143,15 +144,15 @@ class TableZero:
 
       rows.append({'Cohort Flow': label,
                    '': 'Inital, n',
-                   'N': len(df_0)})
+                   'N': f"{len(df_0):,}"})
       
       rows.append({'Cohort Flow': label,
                    '': 'Removed, n',
-                   'N': len(df_0) - len(df_1)})
+                   'N': f"{len(df_0) - len(df_1):,}"})
       
       rows.append({'Cohort Flow': label,
                    '': 'Result, n',
-                   'N': len(df_1)})
+                   'N': f"{len(df_1):,}"})
 
     table = pd.DataFrame(rows)
 
