@@ -9,14 +9,140 @@ import pandas as pd
 class TableZero:
   def __init__(self,
                dfs: list,
-               cols: list,
                decimals: int=1,
-               format: str='N',
-               missingness: bool=True,
                ):
 
     if not isinstance(dfs, list) or len(dfs) < 1:
         raise ValueError("dfs must be a list with length ≥ 1")
+    
+    if not isinstance(decimals, int) or decimals < 0:
+        raise ValueError("decimals must be a non-negative integer")
+
+    self.data = dfs
+    self.decimals = decimals
+
+  def __get_original_uniques(self, cols):
+
+    original_uniques = dict()
+
+    # get uniques values ignoring NaNs
+    for c in cols:
+      original_uniques[c] = self.data[0][c].dropna().unique()
+
+    return original_uniques
+
+
+
+  def __my_value_counts(self,
+                        df: pd.DataFrame(),
+                        original_uniques: dict,
+                        col: str,
+                        missingness: bool=True,
+                        format: str='N',
+                        ) -> pd.DataFrame(): # type: ignore
+
+    o_uniques = original_uniques[col]
+    counts = pd.DataFrame(columns=[col], index=o_uniques)
+
+    # get the number of observations, based on whether we want to include missingness
+    if missingness:
+      n = len(df)
+    else:
+      n = len(df) - df[col].isnull().sum() # denominator will be the number of non-missing observations
+
+    for o in o_uniques:
+      if format == '%':
+        counts.loc[o,col] = ((df[col] == o).sum() / n * 100).round(self.decimals)
+  
+      elif format == 'N':
+        counts.loc[o,col] = (df[col] == o).sum()
+   
+      elif format == 'N (%)':
+        n_counts = (df[col] == o).sum()
+        perc_counts = (n_counts / n * 100).round(self.decimals)
+        counts.loc[o,col] = f"{n_counts} ({perc_counts})"
+
+      else:
+        raise ValueError("format must be '%', 'N', or 'N (%)'")
+
+
+    return counts 
+  
+
+  def __add_missing_counts(self,
+                           df: pd.DataFrame(),
+                           col: str,
+                           format: str,
+                           df_counts: pd.DataFrame(),
+                           ) -> pd.DataFrame(): # type: ignore
+
+    n = len(df)
+
+    if format == '%':
+      df_counts.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self.decimals)
+    
+    elif format == 'N':
+      df_counts.loc[(col,'Missing'),'value'] = df[col].isnull().sum()
+
+    elif format == 'N (%)':
+      n_missing = df[col].isnull().sum()
+      perc_missing = df[col].isnull().sum() / n * 100
+      df_counts.loc[(col,'Missing'),'value'] = f"{n_missing} ({(perc_missing).round(self.decimals)})"
+
+    else:
+      raise ValueError("format must be '%', 'N', or 'N (%)'")
+
+    return df_counts
+  
+  
+  def __add_overall_counts(self,
+                           df,
+                           df_counts
+                           ) -> pd.DataFrame(): # type: ignore
+
+    df_counts.loc[('Overall', ' '), 'value'] = f"{len(df)}"
+
+    return df_counts
+
+  # first view: cohort flow numbers
+  def view_flow(self):
+    
+    table = pd.DataFrame(columns=['Cohort Flow', '', 'N',])
+    rows = []
+
+    for i in range(len(self.data) - 1):
+
+      df_0 = self.data[i]
+      df_1 = self.data[i+1]
+      label = f"{i} to {i+1}"
+
+      rows.append({'Cohort Flow': label,
+                   '': 'Inital, n',
+                   'N': len(df_0)})
+      
+      rows.append({'Cohort Flow': label,
+                   '': 'Removed, n',
+                   'N': len(df_0) - len(df_1)})
+      
+      rows.append({'Cohort Flow': label,
+                   '': 'Result, n',
+                   'N': len(df_1)})
+
+    table = pd.DataFrame(rows)
+
+    table = table.pivot(index='', columns='Cohort Flow', values='N')
+
+    return table
+
+
+
+  # second view: cohort flow distributions
+  def view_cohorts(self,
+                   cols: list,
+                   decimals: int=1,
+                   format: str='N',
+                   missingness: bool=True, 
+      ):
 
     if not isinstance(cols, list):
         raise ValueError("cols must be a list")
@@ -29,104 +155,28 @@ class TableZero:
     
     if not isinstance(missingness, bool):
         raise ValueError("missingness must be a boolean")
-
-    self.data = dfs
-    self.columns = cols
-    self.decimals = decimals
-    self.format = format
-    self.missingness = missingness
-
-
-  def __get_original_uniques(self):
-
-    self.original_uniques = dict()
-
-    # get uniques values ignoring NaNs
-    for c in self.columns:
-      self.original_uniques[c] = self.data[0][c].dropna().unique()
-
-
-
-  def __my_value_counts(self, df, col) -> pd.DataFrame(): # type: ignore
-
-    o_uniques = self.original_uniques[col]
-    counts = pd.DataFrame(columns=[col], index=o_uniques)
-
-    # get the number of observations, based on whether we want to include missingness
-    if self.missingness:
-      n = len(df)
-    else:
-      n = len(df) - df[col].isnull().sum() # denominator will be the number of non-missing observations
-
-    for o in o_uniques:
-      if self.format == '%':
-        counts.loc[o,col] = ((df[col] == o).sum() / n * 100).round(self.decimals)
-  
-      elif self.format == 'N':
-        counts.loc[o,col] = (df[col] == o).sum()
-   
-      elif self.format == 'N (%)':
-        n_counts = (df[col] == o).sum()
-        perc_counts = (n_counts / n * 100).round(self.decimals)
-        counts.loc[o,col] = f"{n_counts} ({perc_counts})"
-
-      else:
-        raise ValueError("format must be '%', 'N', or 'N (%)'")
-
-
-    return counts 
-  
-
-  def __add_missing_counts(self, df, col, df_counts) -> pd.DataFrame(): # type: ignore
-
-    n = len(df)
-
-    if self.format == '%':
-      df_counts.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self.decimals)
     
-    elif self.format == 'N':
-      df_counts.loc[(col,'Missing'),'value'] = df[col].isnull().sum()
-
-    elif self.format == 'N (%)':
-      n_missing = df[col].isnull().sum()
-      perc_missing = df[col].isnull().sum() / n * 100
-      df_counts.loc[(col,'Missing'),'value'] = f"{n_missing} ({(perc_missing).round(self.decimals)})"
-
-    else:
-      raise ValueError("format must be '%', 'N', or 'N (%)'")
-
-    return df_counts
-  
-  
-  def __add_overall_counts(self, df, df_counts) -> pd.DataFrame(): # type: ignore
-
-    df_counts.loc[('Overall', ' '), 'value'] = f"{len(df)}"
-
-    return df_counts
-
-
-  # change name to represent the fact that this view is for the distribution of the cohorts
-  def view_cohorts(self):
+    self.decimals = decimals
 
     table = pd.DataFrame()
 
-    self.__get_original_uniques()
+    original_uniques = self.__get_original_uniques(cols)
 
     for i, df in enumerate(self.data):
 
       df_counts = pd.DataFrame()
 
-      for col in self.columns:
+      for col in cols:
 
-        counts = self.__my_value_counts(df, col)
+        counts = self.__my_value_counts(df, original_uniques, col, missingness, format)
 
         melted_counts = pd.melt(counts.reset_index(), id_vars=['index']) \
                           .set_index(['variable','index'])
 
         df_counts = pd.concat([df_counts, melted_counts], axis=0)
 
-        if self.missingness:
-          df_counts = self.__add_missing_counts(df, col, df_counts)
+        if missingness:
+          df_counts = self.__add_missing_counts(df, col, format, df_counts)
         
       df_counts = self.__add_overall_counts(df, df_counts)
       
@@ -148,41 +198,9 @@ class TableZero:
 
     return table
   
-  # to-do: add a view for the flow of the cohorts, with N, remove, new N
-  def view_flow(self):
-
-    table = pd.DataFrame(columns=['Flow', '', 'N',])
-    rows = []
-
-    for i in range(len(self.data) - 1):
-
-      df_0 = self.data[i]
-      df_1 = self.data[i+1]
-      label = f"{i} to {i+1}"
-
-      rows.append({'Flow': label,
-                   '': 'Inital, n',
-                   'N': len(df_0)})
-      
-      rows.append({'Flow': label,
-                   '': 'Removed, n',
-                   'N': len(df_0) - len(df_1)})
-      
-      rows.append({'Flow': label,
-                   '': 'Result, n',
-                   'N': len(df_1)})
-
-    table = pd.DataFrame(rows)
-
-    # pivot table to have the flow as the columns
-    table = table.pivot(index='', columns='Flow', values='N')
-
-    return table
-      
-      
-
-
-
-
+  
+  # third view: cohort flow distribution differences
+  def view_differences(self):
     pass
-
+      
+      
