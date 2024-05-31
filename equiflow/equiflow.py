@@ -3,9 +3,9 @@ The equiflow package is used for creating "Equity-focused Cohort Section Flow Di
 for cohort selection in clinical and machine learning papers.
 """
 
+from typing import Optional, Union
 import numpy as np
 import pandas as pd
-from typing import Optional, Union
 
 
 class EquiFlow:
@@ -114,19 +114,18 @@ class TableFlows:
     return table
 
 
-
-class TableCharacteristics:
+class BaseTable:
   def __init__(self,
-               dfs: list,
-               categorical: Optional[list] = None,
-               normal: Optional[list] = None,
-               nonnormal: Optional[list] = None,
-               decimals: Optional[int] = 1,
-               format: Optional[str] = 'N (%)',
-               missingness: Optional[bool] = True,
-               label_suffix: Optional[bool] = True,
-               rename: Optional[dict] = None,
-               ) -> None:
+            dfs: list,
+            categorical: Optional[list] = None,
+            normal: Optional[list] = None,
+            nonnormal: Optional[list] = None,
+            decimals: Optional[int] = 1,
+            format: Optional[str] = 'N (%)',
+            missingness: Optional[bool] = True,
+            label_suffix: Optional[bool] = True,
+            rename: Optional[dict] = None,
+            ) -> None:
     
     if not isinstance(dfs, list) or len(dfs) < 1:
       raise ValueError("dfs must be a list with length ≥ 1")
@@ -164,10 +163,16 @@ class TableCharacteristics:
     self._format = format
     self._label_suffix = label_suffix
     self._rename = rename
-    
+   
+
+# inherits from BaseTable
+class TableCharacteristics(BaseTable):
+  def __init__(self, *args, **kwargs):
+
+    super().__init__(*args, **kwargs)
 
   # method to get the unique values, before any exclusion (at i=0)
-  def __get_original_uniques(self, cols):
+  def _get_original_uniques(self, cols):
 
     original_uniques = dict()
 
@@ -179,7 +184,7 @@ class TableCharacteristics:
 
 
   # method to get the value counts for a given column
-  def __my_value_counts(self,
+  def _my_value_counts(self,
                         df: pd.DataFrame(),
                         original_uniques: dict,
                         col: str,
@@ -214,7 +219,7 @@ class TableCharacteristics:
   
 
   # method to add missing counts to the table
-  def __add_missing_counts(self,
+  def _add_missing_counts(self,
                            df: pd.DataFrame(),
                            col: str,
                            df_dists: pd.DataFrame(),
@@ -240,7 +245,7 @@ class TableCharacteristics:
   
   
   # method to add overall counts to the table
-  def __add_overall_counts(self,
+  def _add_overall_counts(self,
                            df,
                            df_dists
                            ) -> pd.DataFrame(): # type: ignore
@@ -251,7 +256,7 @@ class TableCharacteristics:
     return df_dists
   
   # method to add label_suffix to the table
-  def __add_label_suffix(self,
+  def _add_label_suffix(self,
                          col: str,
                          df_dists: pd.DataFrame(),
                          suffix: str,
@@ -263,7 +268,7 @@ class TableCharacteristics:
     return df_dists
   
   # method to rename columns
-  def __rename_columns(self,
+  def _rename_columns(self,
                        df_dists: pd.DataFrame(),
                        col: str,
                       ) -> pd.DataFrame():
@@ -275,7 +280,7 @@ class TableCharacteristics:
     table = pd.DataFrame()
 
     # get the unique values, before any exclusion, for categorical variables
-    original_uniques = self.__get_original_uniques(self._categorical)
+    original_uniques = self._get_original_uniques(self._categorical)
 
     for i, df in enumerate(self._dfs):
 
@@ -284,7 +289,7 @@ class TableCharacteristics:
       # get distribution for categorical variables
       for col in self._categorical:
 
-        counts = self.__my_value_counts(df, original_uniques, col)
+        counts = self._my_value_counts(df, original_uniques, col)
 
         melted_counts = pd.melt(counts.reset_index(), id_vars=['index']) \
                           .set_index(['variable','index'])
@@ -292,14 +297,14 @@ class TableCharacteristics:
         df_dists = pd.concat([df_dists, melted_counts], axis=0)
 
         if self._missingness:
-          df_dists = self.__add_missing_counts(df, col, df_dists)
+          df_dists = self._add_missing_counts(df, col, df_dists)
 
         # rename if applicable
         if col in self._rename.keys():
-          col, df_dists = self.__rename_columns(df_dists, col)
+          col, df_dists = self._rename_columns(df_dists, col)
 
         if self._label_suffix:
-            df_dists = self.__add_label_suffix(col, df_dists, ', ' + self._format)
+            df_dists = self._add_label_suffix(col, df_dists, ', ' + self._format)
           
 
       # get distribution for normal variables
@@ -312,13 +317,13 @@ class TableCharacteristics:
           df_dists.loc[(col, ' '), 'value'] = f"{col_mean} ± {col_std}"
           
           if self._missingness:
-            df_dists = self.__add_missing_counts(df, col, df_dists)
+            df_dists = self._add_missing_counts(df, col, df_dists)
 
           if col in self._rename.keys():
-            col, df_dists = self.__rename_columns(df_dists, col)
+            col, df_dists = self._rename_columns(df_dists, col)
 
           if self._label_suffix:
-            df_dists = self.__add_label_suffix(col, df_dists, ', Mean ± SD')
+            df_dists = self._add_label_suffix(col, df_dists, ', Mean ± SD')
         
       # get distribution for nonnormal variables
       for col in self._nonnormal:
@@ -331,16 +336,16 @@ class TableCharacteristics:
         df_dists.loc[(col, ' '), 'value'] = f"{col_median} [{col_q1}, {col_q3}]"
 
         if self._missingness:
-          df_dists = self.__add_missing_counts(df, col, df_dists)
+          df_dists = self._add_missing_counts(df, col, df_dists)
         
         if col in self._rename.keys():
-          col, df_dists = self.__rename_columns(df_dists, col)
+          col, df_dists = self._rename_columns(df_dists, col)
 
         if self._label_suffix:
-          df_dists = self.__add_label_suffix(col, df_dists, ', Median [IQR]')
+          df_dists = self._add_label_suffix(col, df_dists, ', Median [IQR]')
 
 
-      df_dists = self.__add_overall_counts(df, df_dists)
+      df_dists = self._add_overall_counts(df, df_dists)
     
       df_dists.rename(columns={'value': i}, inplace=True)
       table = pd.concat([table, df_dists], axis=1)
@@ -359,3 +364,143 @@ class TableCharacteristics:
 
     return table
     
+
+
+class TableDrifts(BaseTable):
+  def __init__(self, *args, **kwargs):
+
+    super().__init__(*args, **kwargs)
+    
+
+  # adapted from: https://github.com/tompollard/tableone/blob/main/tableone/tableone.py#L659
+  def _cat_smd(self,
+              prop1=None,
+              prop2=None,
+              n1=None,
+              n2=None,
+              unbiased=False):
+      """
+      Compute the standardized mean difference (regular or unbiased) using
+      either raw data or summary measures.
+
+      Parameters
+      ----------
+      prop1 : list
+          Proportions (range 0-1) for each categorical value in dataset 1
+          (control). 
+      prop2 : list
+          Proportions (range 0-1) for each categorical value in dataset 2
+          (treatment).
+      n1 : int
+          Sample size of dataset 1 (control).
+      n2 : int
+          Sample size of dataset 2 (treatment).
+      unbiased : bool
+          Return an unbiased estimate using Hedges' correction. Correction
+          factor approximated using the formula proposed in Hedges 2011.
+          (default = False)
+
+      Returns
+      -------
+      smd : float
+          Estimated standardized mean difference.
+      """
+      # Categorical SMD Yang & Dalton 2012
+      # https://support.sas.com/resources/papers/proceedings12/335-2012.pdf
+      prop1 = np.asarray(prop1)
+      prop2 = np.asarray(prop2)
+
+      lst_cov = []
+      for p in [prop1, prop2]:
+          variance = p * (1 - p)
+          covariance = - np.outer(p, p)  # type: ignore
+          covariance[np.diag_indices_from(covariance)] = variance
+          lst_cov.append(covariance)
+
+      mean_diff = np.asarray(prop2 - prop1).reshape((1, -1))  # type: ignore
+      mean_cov = (lst_cov[0] + lst_cov[1])/2
+
+      try:
+          sq_md = mean_diff @ np.linalg.inv(mean_cov) @ mean_diff.T
+      except LinAlgError:
+          sq_md = np.nan
+
+      try:
+          smd = np.asarray(np.sqrt(sq_md))[0][0]
+      except IndexError:
+          smd = np.nan
+
+      # standard error
+      # v_d = ((n1+n2) / (n1*n2)) + ((smd ** 2) / (2*(n1+n2)))  # type: ignore
+      # se = np.sqrt(v_d)
+
+      if unbiased:
+          # Hedges correction (J. Hedges, 1981)
+          # Approximation for the the correction factor from:
+          # Introduction to Meta-Analysis. Michael Borenstein,
+          # L. V. Hedges, J. P. T. Higgins and H. R. Rothstein
+          # Wiley (2011). Chapter 4. Effect Sizes Based on Means.
+          j = 1 - (3/(4*(n1+n2-2)-1))  # type: ignore
+          smd = j * smd
+          # v_g = (j ** 2) * v_d
+          # se = np.sqrt(v_g)
+
+      return smd 
+  
+    # adapted from: https://github.com/tompollard/tableone/blob/main/tableone/tableone.py#L581
+  def _cont_smd(self,
+                mean1=None, mean2=None,
+                sd1=None, sd2=None,
+                n1=None, n2=None,
+                unbiased=False):
+    """
+    Compute the standardized mean difference (regular or unbiased) using
+    either raw data or summary measures.
+
+    Parameters
+    ----------
+    mean1 : float
+        Mean of dataset 1 (control).
+    mean2 : float
+        Mean of dataset 2 (treatment).
+    sd1 : float
+        Standard deviation of dataset 1 (control).
+    sd2 : float
+        Standard deviation of dataset 2 (treatment).
+    n1 : int
+        Sample size of dataset 1 (control).
+    n2 : int
+        Sample size of dataset 2 (treatment).
+    unbiased : bool
+        Return an unbiased estimate using Hedges' correction. Correction
+        factor approximated using the formula proposed in Hedges 2011.
+        (default = False)
+
+    Returns
+    -------
+    smd : float
+        Estimated standardized mean difference.
+    """
+
+    # cohens_d
+    smd = (mean2 - mean1) / np.sqrt((sd1 ** 2 + sd2 ** 2) / 2)  # type: ignore
+
+    # standard error
+    # v_d = ((n1+n2) / (n1*n2)) + ((smd ** 2) / (2*(n1+n2)))  # type: ignore
+    # se = np.sqrt(v_d)
+
+    if unbiased:
+        # Hedges correction (J. Hedges, 1981)
+        # Approximation for the the correction factor from:
+        # Introduction to Meta-Analysis. Michael Borenstein,
+        # L. V. Hedges, J. P. T. Higgins and H. R. Rothstein
+        # Wiley (2011). Chapter 4. Effect Sizes Based on Means.
+        j = 1 - (3/(4*(n1+n2-2)-1))  # type: ignore
+        smd = j * smd
+        # v_g = (j ** 2) * v_d
+        # se = np.sqrt(v_g)
+
+    return smd
+
+  def build(self):
+    pass
