@@ -67,6 +67,7 @@ class TableFlows:
   def __init__(self,
                dfs: list,
                label_suffix: Optional[bool] = True,
+               thousands_sep: Optional[bool] = True,
                ) -> None:
 
     if not isinstance(dfs, list) or len(dfs) < 1:
@@ -77,6 +78,7 @@ class TableFlows:
     
     self._dfs = dfs
     self._label_suffix = label_suffix
+    self._thousands_sep = thousands_sep
 
   def build(self):
 
@@ -95,17 +97,28 @@ class TableFlows:
       else:
         suffix = ''
 
+      if self._thousands_sep:
+        n0_string = f"{len(df_0):,}"
+        n1_string = f"{len(df_0) - len(df_1):,}"
+        n2_string = f"{len(df_1):,}"
+
+      else:
+        n0_string = len(df_0)
+        n1_string = len(df_0) - len(df_1)
+        n2_string = len(df_1)
+
+
       rows.append({'Cohort Flow': label,
                    '': 'Inital' + suffix,
-                   'N': f"{len(df_0):,}"})
+                   'N': n0_string})
       
       rows.append({'Cohort Flow': label,
                    '': 'Removed' + suffix,
-                   'N': f"{len(df_0) - len(df_1):,}"})
+                   'N': n1_string})
       
       rows.append({'Cohort Flow': label,
                    '': 'Result' + suffix,
-                   'N': f"{len(df_1):,}"})
+                   'N': n2_string})
 
     table = pd.DataFrame(rows)
 
@@ -122,6 +135,7 @@ class BaseTable:
             nonnormal: Optional[list] = None,
             decimals: Optional[int] = 1,
             format: Optional[str] = 'N (%)',
+            thousands_sep: Optional[bool] = True,
             missingness: Optional[bool] = True,
             label_suffix: Optional[bool] = True,
             rename: Optional[dict] = None,
@@ -145,6 +159,9 @@ class BaseTable:
     if format not in ['%', 'N', 'N (%)']:
         raise ValueError("format must be '%', 'N', or 'N (%)'")
     
+    if not isinstance(thousands_sep, bool):
+        raise ValueError("thousands_sep must be a boolean")
+    
     if not isinstance(missingness, bool):
         raise ValueError("missingness must be a boolean")
     
@@ -161,6 +178,7 @@ class BaseTable:
     self._decimals = decimals
     self._missingness = missingness
     self._format = format
+    self._thousands_sep = thousands_sep
     self._label_suffix = label_suffix
     self._rename = rename
    
@@ -204,12 +222,18 @@ class TableCharacteristics(BaseTable):
         counts.loc[o,col] = ((df[col] == o).sum() / n * 100).round(self._decimals)
   
       elif self._format == 'N':
-        counts.loc[o,col] = f"{(df[col] == o).sum():,}"
+        if self._thousands_sep:
+          counts.loc[o,col] = f"{(df[col] == o).sum():,}"
+        else:
+          counts.loc[o,col] = (df[col] == o).sum()
    
       elif self._format == 'N (%)':
         n_counts = (df[col] == o).sum()
         perc_counts = (n_counts / n * 100).round(self._decimals)
-        counts.loc[o,col] = f"{n_counts:,} ({perc_counts})"
+        if self._thousands_sep:
+          counts.loc[o,col] = f"{n_counts:,} ({perc_counts})"
+        else:
+          counts.loc[o,col] = f"{n_counts} ({perc_counts})"
 
       else:
         raise ValueError("format must be '%', 'N', or 'N (%)'")
@@ -231,12 +255,18 @@ class TableCharacteristics(BaseTable):
       df_dists.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self._decimals)
     
     elif self._format == 'N':
-      df_dists.loc[(col,'Missing'),'value'] = f"{df[col].isnull().sum():,}"
+      if self._thousands_sep:
+        df_dists.loc[(col,'Missing'),'value'] = f"{df[col].isnull().sum():,}"
+      else:
+        df_dists.loc[(col,'Missing'),'value'] = df[col].isnull().sum()
 
     elif self._format == 'N (%)':
       n_missing = df[col].isnull().sum()
       perc_missing = df[col].isnull().sum() / n * 100
-      df_dists.loc[(col,'Missing'),'value'] = f"{n_missing:,} ({(perc_missing).round(self._decimals)})"
+      if self._thousands_sep:
+        df_dists.loc[(col,'Missing'),'value'] = f"{n_missing:,} ({(perc_missing).round(self._decimals)})"
+      else: 
+        df_dists.loc[(col,'Missing'),'value'] = f"{n_missing} ({(perc_missing).round(self._decimals)})"
 
     else:
       raise ValueError("format must be '%', 'N', or 'N (%)'")
@@ -250,7 +280,10 @@ class TableCharacteristics(BaseTable):
                            df_dists
                            ) -> pd.DataFrame(): # type: ignore
 
-    df_dists.loc[('Overall', ' '), 'value'] = f"{len(df):,}"
+    if self._thousands_sep:
+      df_dists.loc[('Overall', ' '), 'value'] = f"{len(df):,}"
+    else:
+      df_dists.loc[('Overall', ' '), 'value'] = len(df)
 
 
     return df_dists
