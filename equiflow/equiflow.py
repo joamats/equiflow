@@ -134,7 +134,8 @@ class BaseTable:
             normal: Optional[list] = None,
             nonnormal: Optional[list] = None,
             decimals: Optional[int] = 1,
-            format: Optional[str] = 'N (%)',
+            format_cat: Optional[str] = 'N (%)',
+            format_cont: Optional[str] = 'Mean ± SD',
             thousands_sep: Optional[bool] = True,
             missingness: Optional[bool] = True,
             label_suffix: Optional[bool] = True,
@@ -156,8 +157,11 @@ class BaseTable:
     if not isinstance(decimals, int) or decimals < 0:
         raise ValueError("decimals must be a non-negative integer")
     
-    if format not in ['%', 'N', 'N (%)']:
+    if format_cat not in ['%', 'N', 'N (%)']:
         raise ValueError("format must be '%', 'N', or 'N (%)'")
+    
+    if format_cont not in ['Mean ± SD', 'Mean', 'SD']:
+        raise ValueError("format must be 'Mean ± SD' or 'Mean' or 'SD")
     
     if not isinstance(thousands_sep, bool):
         raise ValueError("thousands_sep must be a boolean")
@@ -177,7 +181,8 @@ class BaseTable:
     self._nonnormal = nonnormal
     self._decimals = decimals
     self._missingness = missingness
-    self._format = format
+    self._format_cat = format_cat
+    self._format_cont = format_cont
     self._thousands_sep = thousands_sep
     self._label_suffix = label_suffix
     self._rename = rename
@@ -203,10 +208,10 @@ class TableCharacteristics(BaseTable):
 
   # method to get the value counts for a given column
   def _my_value_counts(self,
-                        df: pd.DataFrame(),
-                        original_uniques: dict,
-                        col: str,
-                        ) -> pd.DataFrame(): # type: ignore
+                       df: pd.DataFrame(),
+                       original_uniques: dict,
+                       col: str,
+                      ) -> pd.DataFrame(): # type: ignore
 
     o_uniques = original_uniques[col]
     counts = pd.DataFrame(columns=[col], index=o_uniques)
@@ -218,16 +223,16 @@ class TableCharacteristics(BaseTable):
       n = len(df) - df[col].isnull().sum() # denominator will be the number of non-missing observations
 
     for o in o_uniques:
-      if self._format == '%':
+      if self._format_cat == '%':
         counts.loc[o,col] = ((df[col] == o).sum() / n * 100).round(self._decimals)
   
-      elif self._format == 'N':
+      elif self._format_cat == 'N':
         if self._thousands_sep:
           counts.loc[o,col] = f"{(df[col] == o).sum():,}"
         else:
           counts.loc[o,col] = (df[col] == o).sum()
    
-      elif self._format == 'N (%)':
+      elif self._format_cat == 'N (%)':
         n_counts = (df[col] == o).sum()
         perc_counts = (n_counts / n * 100).round(self._decimals)
         if self._thousands_sep:
@@ -238,8 +243,31 @@ class TableCharacteristics(BaseTable):
       else:
         raise ValueError("format must be '%', 'N', or 'N (%)'")
 
-
     return counts 
+  
+  # method to report distribution of normal variables
+  def _normal_vars_dist(self,
+                        df: pd.DataFrame(),
+                        col: str,
+                        df_dists: pd.DataFrame(),
+                        ) -> pd.DataFrame():
+    
+    df.loc[:,col] = pd.to_numeric(df[col], errors='raise')
+    
+    if self._format_cont == 'Mean ± SD':
+      col_mean = np.round(df[col].mean(), self._decimals)
+      col_std = np.round(df[col].std(), self._decimals)
+      df_dists.loc[(col, ' '), 'value'] = f"{col_mean} ± {col_std}"
+
+    elif self._format_cont == 'Mean':
+      col_mean = np.round(df[col].mean(), self._decimals)
+      df_dists.loc[(col, ' '), 'value'] = col_mean
+    
+    elif self._format_cont == 'SD':
+      col_std = np.round(df[col].std(), self._decimals)
+      df_dists.loc[(col, ' '), 'value'] = col_std
+
+    return df_dists
   
 
   # method to add missing counts to the table
@@ -251,16 +279,16 @@ class TableCharacteristics(BaseTable):
 
     n = len(df)
 
-    if self._format == '%':
+    if self._format_cat == '%':
       df_dists.loc[(col,'Missing'),'value'] = (df[col].isnull().sum() / n * 100).round(self._decimals)
     
-    elif self._format == 'N':
+    elif self._format_cat == 'N':
       if self._thousands_sep:
         df_dists.loc[(col,'Missing'),'value'] = f"{df[col].isnull().sum():,}"
       else:
         df_dists.loc[(col,'Missing'),'value'] = df[col].isnull().sum()
 
-    elif self._format == 'N (%)':
+    elif self._format_cat == 'N (%)':
       n_missing = df[col].isnull().sum()
       perc_missing = df[col].isnull().sum() / n * 100
       if self._thousands_sep:
@@ -337,17 +365,13 @@ class TableCharacteristics(BaseTable):
           col, df_dists = self._rename_columns(df_dists, col)
 
         if self._label_suffix:
-            df_dists = self._add_label_suffix(col, df_dists, ', ' + self._format)
+            df_dists = self._add_label_suffix(col, df_dists, ', ' + self._format_cat)
           
 
       # get distribution for normal variables
       for col in self._normal:
-          df.loc[:,col] = pd.to_numeric(df[col], errors='raise')
-          
-          col_mean = np.round(df[col].mean(), self._decimals)
-          col_std = np.round(df[col].std(), self._decimals)
   
-          df_dists.loc[(col, ' '), 'value'] = f"{col_mean} ± {col_std}"
+          df_dists = self._normal_vars_dist(df, col, df_dists)
           
           if self._missingness:
             df_dists = self._add_missing_counts(df, col, df_dists)
@@ -356,7 +380,7 @@ class TableCharacteristics(BaseTable):
             col, df_dists = self._rename_columns(df_dists, col)
 
           if self._label_suffix:
-            df_dists = self._add_label_suffix(col, df_dists, ', Mean ± SD')
+            df_dists = self._add_label_suffix(col, df_dists, ', ' + self._format_cont)
         
       # get distribution for nonnormal variables
       for col in self._nonnormal:
@@ -407,11 +431,11 @@ class TableDrifts(BaseTable):
 
   # adapted from: https://github.com/tompollard/tableone/blob/main/tableone/tableone.py#L659
   def _cat_smd(self,
-              prop1=None,
-              prop2=None,
-              n1=None,
-              n2=None,
-              unbiased=False):
+               prop1=None,
+               prop2=None,
+               n1=None,
+               n2=None,
+               unbiased=False):
       """
       Compute the standardized mean difference (regular or unbiased) using
       either raw data or summary measures.
