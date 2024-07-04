@@ -45,15 +45,51 @@ class EquiFlow:
 
   def table_flows(self, *args, **kwargs):
     table = TableFlows(self._dfs, *args, **kwargs)
-    return table.build()
+    self._table_flows = table.build()
+    return self._table_flows
 
   def table_characteristics(self, *args, **kwargs) -> pd.DataFrame:
     table = TableCharacteristics(self._dfs, *args, **kwargs)
-    return table.build()
+    self._table_characteristics = table.build()
+    return self._table_characteristics
 
-  # third view: cohort flow distribution differences
-  def table_drifts(self):
-    pass
+  def table_drifts(self, *args, **kwargs) -> pd.DataFrame:
+    # based on the arguments that we have, build auxiliary tables
+    table_cat_n_kwargs = kwargs.copy()
+    table_cat_n_kwargs['normal'] = []
+    table_cat_n_kwargs['nonnormal'] = []
+    table_cat_n_kwargs['format_cat'] = 'N'
+    table_cat_n = TableCharacteristics(self._dfs, *args, **table_cat_n_kwargs).build()
+
+    table_cat_perc_kwargs = kwargs.copy()
+    table_cat_perc_kwargs['normal'] = []
+    table_cat_perc_kwargs['nonnormal'] = []
+    table_cat_perc_kwargs['format_cat'] = '%'
+    table_cat_perc = TableCharacteristics(self._dfs, *args, **table_cat_perc_kwargs).build()
+
+    table_cont_mean_kwargs = kwargs.copy()
+    # table_cat_perc_kwargs['categorical'] = [] ## currently generates a bug, need to fix!!
+    table_cont_mean_kwargs['normal'] = table_cont_mean_kwargs['normal'] + table_cont_mean_kwargs['nonnormal']
+    table_cont_mean_kwargs['nonnormal'] = []
+    table_cont_mean_kwargs['format_cont'] = 'Mean'
+    table_cont_mean = TableCharacteristics(self._dfs, *args, **table_cont_mean_kwargs).build()
+
+    table_cont_sd_kwargs = kwargs.copy()
+    # table_cat_perc_kwargs['categorical'] = [] ## currently generates a bug, need to fix!!
+    table_cont_sd_kwargs['normal'] = table_cont_sd_kwargs['normal'] + table_cont_sd_kwargs['nonnormal']
+    table_cont_sd_kwargs['nonnormal'] = []  
+    table_cont_sd_kwargs['format_cont'] = 'SD'
+    table_cont_sd = TableCharacteristics(self._dfs, *args, **table_cont_sd_kwargs).build()
+
+    table = TableDrifts(self._dfs,
+                        self._table_flows,
+                        self._table_characteristics,
+                        table_cat_n,
+                        table_cat_perc,
+                        table_cont_mean,
+                        table_cont_sd,
+                        )
+    return table#.build()
   
 
   def plot_flows(self):
@@ -64,11 +100,12 @@ class EquiFlow:
 
 
 class TableFlows:
-  def __init__(self,
-               dfs: list,
-               label_suffix: Optional[bool] = True,
-               thousands_sep: Optional[bool] = True,
-               ) -> None:
+  def __init__(
+        self,
+        dfs: list,
+        label_suffix: Optional[bool] = True,
+        thousands_sep: Optional[bool] = True,
+    ) -> pd.DataFrame:
 
     if not isinstance(dfs, list) or len(dfs) < 1:
       raise ValueError("dfs must be a list with length ≥ 1")
@@ -80,7 +117,11 @@ class TableFlows:
     self._label_suffix = label_suffix
     self._thousands_sep = thousands_sep
 
-  def build(self):
+    self.table = self._build()
+
+    return self.table
+
+  def _build(self):
 
     table = pd.DataFrame(columns=['Cohort Flow', '', 'N',])
     rows = []
@@ -125,25 +166,27 @@ class TableFlows:
     table = table.pivot(index='', columns='Cohort Flow', values='N')
 
     return table
+  
 
-
-class BaseTable:
-  def __init__(self,
-            dfs: list,
-            categorical: Optional[list] = None,
-            normal: Optional[list] = None,
-            nonnormal: Optional[list] = None,
-            decimals: Optional[int] = 1,
-            format_cat: Optional[str] = 'N (%)',
-            format_cont: Optional[str] = 'Mean ± SD',
-            thousands_sep: Optional[bool] = True,
-            missingness: Optional[bool] = True,
-            label_suffix: Optional[bool] = True,
-            rename: Optional[dict] = None,
-            ) -> None:
-    
+class TableCharacteristics:
+  def __init__(
+      self,
+      dfs: list,
+      categorical: Optional[list] = None,
+      normal: Optional[list] = None,
+      nonnormal: Optional[list] = None,
+      decimals: Optional[int] = 1,
+      format_cat: Optional[str] = 'N (%)',
+      format_normal: Optional[str] = 'Mean ± SD',
+      format_nonnormal: Optional[str] = 'Median [IQR]',
+      thousands_sep: Optional[bool] = True,
+      missingness: Optional[bool] = True,
+      label_suffix: Optional[bool] = True,
+      rename: Optional[dict] = None,
+  ) -> pd.DataFrame:
+        
     if not isinstance(dfs, list) or len(dfs) < 1:
-      raise ValueError("dfs must be a list with length ≥ 1")
+        raise ValueError("dfs must be a list with length ≥ 1")
     
     if not isinstance(categorical, list):
         raise ValueError("categorical must be a list")
@@ -160,8 +203,11 @@ class BaseTable:
     if format_cat not in ['%', 'N', 'N (%)']:
         raise ValueError("format must be '%', 'N', or 'N (%)'")
     
-    if format_cont not in ['Mean ± SD', 'Mean', 'SD']:
-        raise ValueError("format must be 'Mean ± SD' or 'Mean' or 'SD")
+    if format_normal not in ['Mean ± SD', 'Mean', 'SD']:
+        raise ValueError("format must be 'Mean ± SD' or 'Mean' or 'SD'")
+    
+    if format_nonnormal not in ['Median [IQR]', 'Mean', 'SD']:
+        raise ValueError("format must be 'Median [IQR]' or 'Mean' or 'SD'")
     
     if not isinstance(thousands_sep, bool):
         raise ValueError("thousands_sep must be a boolean")
@@ -182,17 +228,15 @@ class BaseTable:
     self._decimals = decimals
     self._missingness = missingness
     self._format_cat = format_cat
-    self._format_cont = format_cont
+    self._format_normal = format_normal
+    self._format_nonnormal = format_nonnormal
     self._thousands_sep = thousands_sep
     self._label_suffix = label_suffix
     self._rename = rename
-   
 
-# inherits from BaseTable
-class TableCharacteristics(BaseTable):
-  def __init__(self, *args, **kwargs):
+    self.table = self._build()
 
-    super().__init__(*args, **kwargs)
+    return self.table
 
   # method to get the unique values, before any exclusion (at i=0)
   def _get_original_uniques(self, cols):
@@ -254,16 +298,41 @@ class TableCharacteristics(BaseTable):
     
     df.loc[:,col] = pd.to_numeric(df[col], errors='raise')
     
-    if self._format_cont == 'Mean ± SD':
+    if self._format_normal == 'Mean ± SD':
       col_mean = np.round(df[col].mean(), self._decimals)
       col_std = np.round(df[col].std(), self._decimals)
       df_dists.loc[(col, ' '), 'value'] = f"{col_mean} ± {col_std}"
 
-    elif self._format_cont == 'Mean':
+    elif self._format_normal == 'Mean':
       col_mean = np.round(df[col].mean(), self._decimals)
       df_dists.loc[(col, ' '), 'value'] = col_mean
     
-    elif self._format_cont == 'SD':
+    elif self._format_normal == 'SD':
+      col_std = np.round(df[col].std(), self._decimals)
+      df_dists.loc[(col, ' '), 'value'] = col_std
+
+    return df_dists
+  
+  def _nonnormal_vars_dist(self,
+                           df: pd.DataFrame(),
+                           col: str,
+                           df_dists: pd.DataFrame(),
+                          ) -> pd.DataFrame():
+     
+    df.loc[:,col] = pd.to_numeric(df[col], errors='raise')
+
+    if self._format_nonnormal == 'Mean':
+      col_mean = np.round(df[col].mean(), self._decimals)
+      df_dists.loc[(col, ' '), 'value'] = col_mean
+
+    elif self._format_nonnormal == 'Median [IQR]':
+      col_median = np.round(df[col].median(), self._decimals)
+      col_q1 = np.round(df[col].quantile(0.25), self._decimals)
+      col_q3 = np.round(df[col].quantile(0.75), self._decimals)
+
+      df_dists.loc[(col, ' '), 'value'] = f"{col_median} [{col_q1}, {col_q3}]"
+
+    elif self._format_nonnormal == 'SD':
       col_std = np.round(df[col].std(), self._decimals)
       df_dists.loc[(col, ' '), 'value'] = col_std
 
@@ -336,7 +405,7 @@ class TableCharacteristics(BaseTable):
     
     return self._rename[col], df_dists.rename(index={col: self._rename[col]})
   
-  def build(self):
+  def _build(self):
 
     table = pd.DataFrame()
 
@@ -380,17 +449,12 @@ class TableCharacteristics(BaseTable):
             col, df_dists = self._rename_columns(df_dists, col)
 
           if self._label_suffix:
-            df_dists = self._add_label_suffix(col, df_dists, ', ' + self._format_cont)
+            df_dists = self._add_label_suffix(col, df_dists, ', ' + self._format_normal)
         
       # get distribution for nonnormal variables
       for col in self._nonnormal:
-        df.loc[:,col] = pd.to_numeric(df[col], errors='raise')
 
-        col_median = np.round(df[col].median(), self._decimals)
-        col_q1 = np.round(df[col].quantile(0.25), self._decimals)
-        col_q3 = np.round(df[col].quantile(0.75), self._decimals)
-
-        df_dists.loc[(col, ' '), 'value'] = f"{col_median} [{col_q1}, {col_q3}]"
+        df_dists = self._nonnormal_vars_dist(df, col, df_dists)
 
         if self._missingness:
           df_dists = self._add_missing_counts(df, col, df_dists)
@@ -399,7 +463,7 @@ class TableCharacteristics(BaseTable):
           col, df_dists = self._rename_columns(df_dists, col)
 
         if self._label_suffix:
-          df_dists = self._add_label_suffix(col, df_dists, ', Median [IQR]')
+          df_dists = self._add_label_suffix(col, df_dists, ', ' + self._format_nonnormal)
 
 
       df_dists = self._add_overall_counts(df, df_dists)
@@ -423,11 +487,149 @@ class TableCharacteristics(BaseTable):
     
 
 
-class TableDrifts(BaseTable):
-  def __init__(self, *args, **kwargs):
-
-    super().__init__(*args, **kwargs)
+class TableDrifts():
+  def __init__(
+      self,
+      dfs: list,
+      categorical: Optional[list] = None,
+      normal: Optional[list] = None,
+      nonnormal: Optional[list] = None,
+      decimals: Optional[int] = 1,
+      missingness: Optional[bool] = True,
+      rename: Optional[dict] = None,
+  ) -> pd.DataFrame:
     
+    if not isinstance(dfs, list) or len(dfs) < 1:
+        raise ValueError("dfs must be a list with length ≥ 1")
+    
+    if not isinstance(categorical, list):
+        raise ValueError("categorical must be a list")
+
+    if not isinstance(normal, list):
+        raise ValueError("normal must be a list")
+    
+    if not isinstance(nonnormal, list):
+        raise ValueError("nonnormal must be a list")
+    
+    if not isinstance(decimals, int) or decimals < 0:
+        raise ValueError("decimals must be a non-negative integer")
+    
+    if not isinstance(rename, dict):
+        raise ValueError("rename must be a dictionary")
+    
+    self._dfs = dfs
+    self._categorical = categorical
+    self._normal = normal
+    self._nonnormal = nonnormal
+    self._decimals = decimals
+    self._missingness = missingness
+    self._rename = rename
+  
+    self._table_flows = TableFlows(
+      dfs,
+      label_suffix=False,
+      thousands_sep=False,
+    ).table
+
+    self._table_characteristics = TableCharacteristics(
+      dfs,
+      categorical=self._categorical,
+      normal=self._normal,
+      nonnormal=self._nonnormal,
+      decimals=self._decimals,
+      missingness=False,
+      format_cat='N',
+      format_normal='Mean',
+      format_nonnormal='Mean',
+      thousands_sep=False,
+      label_suffix=False,
+      rename=self._rename,
+    ).table
+
+    # auxiliary tables
+    self._table_cat_n = TableCharacteristics(
+      dfs,
+      categorical=self._categorical,
+      normal=self._normal,
+      nonnormal=self._nonnormal,
+      decimals=self._decimals,
+      format_cat='N',
+      format_normal='Mean',
+      format_nonnormal='Mean',
+      thousands_sep=False,
+      missingness=self._missingness,
+      label_suffix=False,
+      rename=self._rename,
+    ).table
+
+    self._table_cat_perc = TableCharacteristics(
+      dfs,
+      categorical=self._categorical,
+      normal=self._normal,
+      nonnormal=self._nonnormal,
+      decimals=self._decimals,
+      format_cat='%',
+      format_normal='SD',
+      format_nonnormal='SD',
+      thousands_sep=False,
+      missingness=self._missingness,
+      label_suffix=False,
+      rename=self._rename,
+    ).table
+
+    self.table = self._build()
+
+    return self.table
+
+
+  def _build(self):
+
+    inverse_rename = {value: key for key, value in self._rename.items()}
+
+    table = pd.DataFrame(index=self._table_characteristics.index,
+                         columns=self._table_flows.columns)
+    
+    for i, index_name in enumerate(self._table_characteristics.index):
+      for j, column_name in enumerate(self._table_flows.columns):
+        # skip if index_name is 'Overall' or 'Missing'
+        if (index_name[0] == 'Overall'): # | (index_name[1] == 'Missing'):
+          table.iloc[i,j] = ''
+          continue
+        
+        # use cat_smd for categorical variables
+        if inverse_rename[index_name[0]] in self._categorical:
+          cat_n_0 = self._table_cat_n.loc[index_name, :].iloc[j]
+          cat_perc_0 = self._table_cat_perc.loc[index_name, :].iloc[j]
+          cat_n_1 = self._table_cat_n.loc[index_name, :].iloc[j+1]
+          cat_perc_1 = self._table_cat_perc.loc[index_name, :].iloc[j+1]
+          table.iloc[i,j] = self._cat_smd(
+             prop1=[cat_perc_0/100],
+             prop2=[cat_perc_1/100],
+             n1=cat_n_0,
+             n2=cat_n_1,
+             unbiased=True
+          )
+        
+        # use cont_smd for continuous variables
+        elif (inverse_rename[index_name[0]] in self._normal) | (inverse_rename[index_name[0]] in self._nonnormal):
+          mean_0 = self._table_cat_n.loc[index_name, :].iloc[j]
+          sd_0 = self._table_cat_perc.loc[index_name, :].iloc[j]
+          mean_1 = self._table_cat_n.loc[index_name, :].iloc[j+1]
+          sd_1 = self._table_cat_perc.loc[index_name, :].iloc[j+1]
+          n_0 = self._table_characteristics.loc[('Overall', ' '), :].iloc[j]
+          n_1 = self._table_characteristics.loc[('Overall', ' '), :].iloc[j+1]
+          table.iloc[i,j] = self._cont_smd(
+             mean1=mean_0,
+             mean2=mean_1,
+             sd1=sd_0,
+             sd2=sd_1,
+             n1=n_0,
+             n2=n_1,
+             unbiased=True
+          )
+          
+    return table
+        
 
   # adapted from: https://github.com/tompollard/tableone/blob/main/tableone/tableone.py#L659
   def _cat_smd(self,
@@ -479,13 +681,13 @@ class TableDrifts(BaseTable):
 
       try:
           sq_md = mean_diff @ np.linalg.inv(mean_cov) @ mean_diff.T
-      except LinAlgError:
-          sq_md = np.nan
+      except np.linalg.LinAlgError:
+          sq_md = 0
 
       try:
           smd = np.asarray(np.sqrt(sq_md))[0][0]
       except IndexError:
-          smd = np.nan
+          smd = 0
 
       # standard error
       # v_d = ((n1+n2) / (n1*n2)) + ((smd ** 2) / (2*(n1+n2)))  # type: ignore
@@ -502,7 +704,7 @@ class TableDrifts(BaseTable):
           # v_g = (j ** 2) * v_d
           # se = np.sqrt(v_g)
 
-      return smd 
+      return np.round(smd, self._decimals)
   
     # adapted from: https://github.com/tompollard/tableone/blob/main/tableone/tableone.py#L581
   def _cont_smd(self,
@@ -540,7 +742,11 @@ class TableDrifts(BaseTable):
     """
 
     # cohens_d
-    smd = (mean2 - mean1) / np.sqrt((sd1 ** 2 + sd2 ** 2) / 2)  # type: ignore
+    denominator = np.sqrt((sd1 ** 2 + sd2 ** 2) / 2) 
+    if denominator == 0:
+       return 0
+    else:
+      smd = (mean2 - mean1) / denominator # type: ignore
 
     # standard error
     # v_d = ((n1+n2) / (n1*n2)) + ((smd ** 2) / (2*(n1+n2)))  # type: ignore
@@ -557,7 +763,4 @@ class TableDrifts(BaseTable):
         # v_g = (j ** 2) * v_d
         # se = np.sqrt(v_g)
 
-    return smd
-
-  def build(self):
-    pass
+    return np.round(smd, self._decimals)
