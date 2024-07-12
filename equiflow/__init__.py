@@ -1,6 +1,6 @@
-from .equiflow import EquiFlow, TableFlows, TableCharacteristics, TableDrifts
+from .equiflow import TableFlows, TableCharacteristics, TableDrifts, FlowDiagram, EquiFlow
 
 __author__ = "João Matos <jcmatos@mit.edu>"
-__version__ = "0.1.0a2"
+__version__ = "0.1.1a1"
 
-__all__ = ['EquiFlow', 'TableFlows', 'TableCharacteristics', 'TableDrifts']
+__all__ = ['TableFlows', 'TableCharacteristics', 'TableDrifts', 'FlowDiagram', 'EquiFlow']

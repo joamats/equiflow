@@ -6,24 +6,116 @@ for cohort selection in clinical and machine learning papers.
 from typing import Optional, Union
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import os
+import graphviz
 
 
 class EquiFlow:
   def __init__(self,
-               dfs: list) -> None:
+               data: Optional[pd.DataFrame] = None,
+               dfs: Optional[list] = None,
+               initial_cohort_label: Optional[str] = None,
+               label_suffix: Optional[bool] = True,
+               thousands_sep: Optional[bool] = True,
+               categorical: Optional[list] = None,
+               normal: Optional[list] = None,
+               nonnormal: Optional[list] = None,
+               decimals: Optional[int] = 1,
+               format_cat: Optional[str] = 'N (%)',
+               format_normal: Optional[str] = 'Mean ± SD',
+               format_nonnormal: Optional[str] = 'Median [IQR]',
+               missingness: Optional[bool] = True,
+               rename: Optional[dict] = None,
+
+               ) -> None:
     
-    if not isinstance(dfs, list) or len(dfs) < 1:
+    
+    if (data is None) & (dfs is None):
+      raise ValueError("Either data or dfs must be provided")
+    
+    if (data is not None) & (dfs is not None):
+      raise ValueError("Only one of data or dfs must be provided")
+    
+    if (data is not None) & (not isinstance(data, pd.DataFrame)):
+      raise ValueError("data must be a pandas DataFrame")
+    
+    if (dfs is not None) & (not isinstance(dfs, list) or len(dfs) < 1):
       raise ValueError("dfs must be a list with length ≥ 1")
     
-    self._dfs = dfs
+    if (initial_cohort_label is not None) & (not isinstance(initial_cohort_label, str)):
+      raise ValueError("initial_cohort_label must be a string")
+    
+    if not isinstance(label_suffix, bool):
+      raise ValueError("label_suffix must be a boolean")
+    
+    if not isinstance(thousands_sep, bool):
+      raise ValueError("thousands_sep must be a boolean")
+    
+    if (categorical is not None) & (not isinstance(categorical, list)):
+      raise ValueError("categorical must be a list")
+    
+    if (normal is not None) & (not isinstance(normal, list)):
+      raise ValueError("normal must be a list")
+    
+    if (nonnormal is not None) & (not isinstance(nonnormal, list)):
+      raise ValueError("nonnormal must be a list")
+    
+    if not isinstance(decimals, int) or decimals < 0:
+      raise ValueError("decimals must be a non-negative integer")
+    
+    if format_cat not in ['%', 'N', 'N (%)']:
+      raise ValueError("format must be '%', 'N', or 'N (%)'")
+    
+    if format_normal not in ['Mean ± SD', 'Mean', 'SD']:
+      raise ValueError("format must be 'Mean ± SD' or 'Mean' or 'SD'")
+    
+    if format_nonnormal not in ['Median [IQR]', 'Mean', 'SD']:
+      raise ValueError("format must be 'Median [IQR]' or 'Mean' or 'SD'")
+    
+    if not isinstance(missingness, bool):
+      raise ValueError("missingness must be a boolean")
+    
+    if (rename is not None) & (not isinstance(rename, dict)):
+      raise ValueError("rename must be a dictionary")
+    
+    if data is not None:
+      self._dfs = [data]
 
-    self.__clean_missing()
+    if dfs is not None:
+      self._dfs = dfs
 
-    # to-do: add alternative construction if dfs is a single dataframe
+    self._clean_missing()
+
+    self.label_suffix = label_suffix
+    self.thousands_sep = thousands_sep
+    self.categorical = categorical
+    self.normal = normal
+    self.nonnormal = nonnormal
+    self.decimals = decimals
+    self.format_cat = format_cat
+    self.format_normal = format_normal
+    self.format_nonnormal = format_nonnormal
+    self.missingness = missingness
+    self.rename = rename
+
+    self.table_flows = None
+    self.table_characteristics = None
+    self.table_drifts = None
+    self.flow_diagram = None
+
+    self.exclusion_labels = {}
+    self.new_cohort_labels = {}
+
+    if initial_cohort_label is not None:
+      self.new_cohort_labels[0] = initial_cohort_label
+    else:
+      self.new_cohort_labels[0] = 'Initial Cohort'
+
 
 
   # method to categorize missing values under the same label
-  def __clean_missing(self): 
+  def _clean_missing(self): 
     
     for i, df in enumerate(self._dfs):
 
@@ -40,63 +132,255 @@ class EquiFlow:
       
 
  
-  def add_exclusion(self, mask, label):
-    pass
+  def add_exclusion(self,
+                    mask: Optional[bool] = None,
+                    new_cohort: Optional[pd.DataFrame] = None,
+                    exclusion_reason: Optional[str] = None,
+                    new_cohort_label: Optional[str] = None,
+                    ):
+    
+    if (mask is None) & (new_cohort is None):
+      raise ValueError("Either mask or new_cohort must be provided")
+    
+    if (mask is not None) & (new_cohort is not None):
+      raise ValueError("Only one of mask or new_cohort must be provided")
+    
+    if mask is not None:
+      self._dfs.append(self._dfs[-1].loc[mask])
 
-  def table_flows(self, *args, **kwargs):
-    table = TableFlows(self._dfs, *args, **kwargs)
-    self._table_flows = table.build()
-    return self._table_flows
+    if new_cohort is not None:
+      # first make sure that the new cohort has the same columns as the previous one
+      if not set(new_cohort.columns).issubset(self._dfs[-1].columns):
+        raise ValueError("new_cohort must have the same columns as the previous cohort. Only rows/indices should differ")
+      
+      # make sure that the new cohort is not bigger than the previous one; we are excluding!
+      if len(new_cohort) > len(self._dfs[-1]):
+        raise ValueError("new_cohort must have fewer or equal rows than the previous cohort")
+      
+      self._dfs.append(new_cohort)
 
-  def table_characteristics(self, *args, **kwargs) -> pd.DataFrame:
-    table = TableCharacteristics(self._dfs, *args, **kwargs)
-    self._table_characteristics = table.build()
-    return self._table_characteristics
+    if exclusion_reason is not None:
+      self.exclusion_labels[len(self._dfs) - 1] = exclusion_reason
+    else:
+      self.exclusion_labels[len(self._dfs) - 1] = f'Exclusion {len(self._dfs) - 1}'
 
-  def table_drifts(self, *args, **kwargs) -> pd.DataFrame:
-    # based on the arguments that we have, build auxiliary tables
-    table_cat_n_kwargs = kwargs.copy()
-    table_cat_n_kwargs['normal'] = []
-    table_cat_n_kwargs['nonnormal'] = []
-    table_cat_n_kwargs['format_cat'] = 'N'
-    table_cat_n = TableCharacteristics(self._dfs, *args, **table_cat_n_kwargs).build()
+    if new_cohort_label is not None:
+      self.new_cohort_labels[len(self._dfs) - 1] = new_cohort_label
+    else:
+      self.new_cohort_labels[len(self._dfs) - 1] = f'Cohort {len(self._dfs) - 1}'
+       
 
-    table_cat_perc_kwargs = kwargs.copy()
-    table_cat_perc_kwargs['normal'] = []
-    table_cat_perc_kwargs['nonnormal'] = []
-    table_cat_perc_kwargs['format_cat'] = '%'
-    table_cat_perc = TableCharacteristics(self._dfs, *args, **table_cat_perc_kwargs).build()
+  def view_table_flows(self, 
+                       label_suffix: Optional[bool] = None,
+                       thousands_sep: Optional[bool] = None) -> pd.DataFrame:
+    
+    if len(self._dfs) < 2:
+      raise ValueError("At least two cohorts must be provided. Please use add_exclusion() to add exclusions.")
+    
+    if label_suffix is None:
+      label_suffix = self.label_suffix 
 
-    table_cont_mean_kwargs = kwargs.copy()
-    # table_cat_perc_kwargs['categorical'] = [] ## currently generates a bug, need to fix!!
-    table_cont_mean_kwargs['normal'] = table_cont_mean_kwargs['normal'] + table_cont_mean_kwargs['nonnormal']
-    table_cont_mean_kwargs['nonnormal'] = []
-    table_cont_mean_kwargs['format_cont'] = 'Mean'
-    table_cont_mean = TableCharacteristics(self._dfs, *args, **table_cont_mean_kwargs).build()
+    if thousands_sep is None:
+      thousands_sep = self.thousands_sep
 
-    table_cont_sd_kwargs = kwargs.copy()
-    # table_cat_perc_kwargs['categorical'] = [] ## currently generates a bug, need to fix!!
-    table_cont_sd_kwargs['normal'] = table_cont_sd_kwargs['normal'] + table_cont_sd_kwargs['nonnormal']
-    table_cont_sd_kwargs['nonnormal'] = []  
-    table_cont_sd_kwargs['format_cont'] = 'SD'
-    table_cont_sd = TableCharacteristics(self._dfs, *args, **table_cont_sd_kwargs).build()
+    
+    self.table_flows = TableFlows(
+       dfs=self._dfs,
+       label_suffix=label_suffix,
+       thousands_sep=thousands_sep,
+    )
 
-    table = TableDrifts(self._dfs,
-                        self._table_flows,
-                        self._table_characteristics,
-                        table_cat_n,
-                        table_cat_perc,
-                        table_cont_mean,
-                        table_cont_sd,
-                        )
-    return table#.build()
+    return self.table_flows.view()
+
+  def view_table_characteristics(self,
+                                 categorical: Optional[list] = None,
+                                 normal: Optional[list] = None,
+                                 nonnormal: Optional[list] = None,
+                                 decimals: Optional[int] = None,
+                                 format_cat: Optional[str] = None,
+                                 format_normal: Optional[str] = None,
+                                 format_nonnormal: Optional[str] = None,
+                                 thousands_sep: Optional[bool] = None,
+                                 missingness: Optional[bool] = None,
+                                 label_suffix: Optional[bool] = None,
+                                 rename: Optional[dict] = None) -> pd.DataFrame:
+    
+    if len(self._dfs) < 2:
+      raise ValueError("At least two cohorts must be provided. Please use add_exclusion() to add exclusions")
+        
+    if categorical is None:
+      categorical = self.categorical
+
+    if normal is None:
+      normal = self.normal
+
+    if nonnormal is None:
+      nonnormal = self.nonnormal
+
+    if decimals is None:
+      decimals = self.decimals
+
+    if format_cat is None:
+      format_cat = self.format_cat
+
+    if format_normal is None:
+      format_normal = self.format_normal
+
+    if format_nonnormal is None:
+      format_nonnormal = self.format_nonnormal
+
+    if thousands_sep is None:
+      thousands_sep = self.thousands_sep
+
+    if missingness is None:
+      missingness = self.missingness
+
+    if label_suffix is None:
+      label_suffix = self.label_suffix
+
+    if rename is None:
+      rename = self.rename
+
+    self.table_characteristics = TableCharacteristics(
+      dfs=self._dfs,
+      categorical=categorical,
+      normal=normal,
+      nonnormal=nonnormal,
+      decimals=decimals,
+      format_cat=format_cat,
+      format_normal=format_normal,
+      format_nonnormal=format_nonnormal,
+      thousands_sep=thousands_sep,
+      missingness=missingness,
+      label_suffix=label_suffix,
+      rename=rename,
+    )
+
+    return self.table_characteristics.view()
+
+  def view_table_drifts(self,
+                        drifts_by_class: Optional[bool] = False,
+                        categorical: Optional[list] = None,
+                        normal: Optional[list] = None,
+                        nonnormal: Optional[list] = None,
+                        decimals: Optional[int] = None,
+                        missingness: Optional[bool] = None,
+                        rename: Optional[dict] = None) -> pd.DataFrame:
+    
+    if len(self._dfs) < 2:
+      raise ValueError("At least two cohorts must be provided. Please use add_exclusion() to add exclusions")
+
+    if categorical is None:
+      categorical = self.categorical
+
+    if normal is None:
+      normal = self.normal
+
+    if nonnormal is None:
+      nonnormal = self.nonnormal
+
+    if decimals is None:
+      decimals = self.decimals
+
+    if missingness is None:
+      missingness = self.missingness
+
+    if rename is None:
+      rename = self.rename
+
+    self.table_drifts = TableDrifts(
+      dfs=self._dfs,
+      categorical=categorical,
+      normal=normal,
+      nonnormal=nonnormal,
+      decimals=decimals,
+      missingness=missingness,
+      rename=rename,
+    )
+
+    if drifts_by_class:
+      return self.table_drifts.view_simple()
+    
+    else:
+       return self.table_drifts.view()
   
 
-  def plot_flows(self):
-    pass
+  def plot_flows(self,
+                 new_cohort_labels: Optional[list] = None,
+                 exclusion_labels: Optional[list] = None,
+                 box_width: Optional[int] = 2.5,
+                 box_height: Optional[int] = 1,
+                 plot_dists: Optional[bool] = True,
+                 smds: Optional[bool] = True,
+                 legend: Optional[bool] = True,
+                 legend_with_vars: Optional[bool] = True,
+                 output_folder: Optional[str] = 'imgs',
+                 output_file: Optional[str] = 'flow_diagram',
+                 display_flow_diagram: Optional[bool] = True,
+                 ) -> None:
+    
+    if len(self._dfs) < 2: 
+      raise ValueError("At least two cohorts must be provided. Please use add_exclusion() to add exclusions")
+       
+    
+    if new_cohort_labels is None:
+      new_cohort_labels = self.new_cohort_labels.values()
+      new_cohort_labels = ["___ patients\n" + label for label in new_cohort_labels]
 
-  def write_report(self):
-    pass
+    if exclusion_labels is None:
+      exclusion_labels = self.exclusion_labels.values()
+      exclusion_labels = ["___ patients excluded for\n" + label for label in exclusion_labels]
+
+    plot_table_flows = TableFlows(
+      dfs=self._dfs,
+      label_suffix=True,
+      thousands_sep=True,
+    )
+
+    plot_table_characteristics = TableCharacteristics(
+      dfs=self._dfs,
+      categorical=self.categorical,
+      normal=self.normal,
+      nonnormal=self.nonnormal,
+      decimals=self.decimals,
+      format_cat='%',
+      format_normal=self.format_normal,
+      format_nonnormal=self.format_nonnormal,
+      thousands_sep=False,
+      missingness=True,
+      label_suffix=True,
+      rename=self.rename,
+    )
+
+    plot_table_drifts = TableDrifts(
+      dfs=self._dfs,
+      categorical=self.categorical,
+      normal=self.normal,
+      nonnormal=self.nonnormal,
+      decimals=self.decimals,
+      missingness=self.missingness,
+      rename=self.rename,
+    )
+     
+    self.flow_diagram = FlowDiagram(
+      table_flows=plot_table_flows,
+      table_characteristics=plot_table_characteristics,
+      table_drifts=plot_table_drifts,
+      new_cohort_labels=new_cohort_labels,
+      exclusion_labels=exclusion_labels,
+      box_width=box_width,
+      box_height=box_height,
+      plot_dists=plot_dists,
+      smds=smds,
+      legend=legend,
+      legend_with_vars=legend_with_vars,
+      output_folder=output_folder,
+      output_file=output_file,
+      display_flow_diagram=display_flow_diagram,
+    )
+
+    self.flow_diagram.view()
+
 
 
 class TableFlows:
@@ -105,10 +389,10 @@ class TableFlows:
         dfs: list,
         label_suffix: Optional[bool] = True,
         thousands_sep: Optional[bool] = True,
-    ) -> pd.DataFrame:
+    ) -> None:
 
-    if not isinstance(dfs, list) or len(dfs) < 1:
-      raise ValueError("dfs must be a list with length ≥ 1")
+    if not isinstance(dfs, list) or len(dfs) < 2:
+      raise ValueError("dfs must be a list with length ≥ 2")
     
     if not isinstance(label_suffix, bool):
       raise ValueError("label_suffix must be a boolean")
@@ -117,11 +401,8 @@ class TableFlows:
     self._label_suffix = label_suffix
     self._thousands_sep = thousands_sep
 
-    self.table = self._build()
 
-    return self.table
-
-  def _build(self):
+  def view(self):
 
     table = pd.DataFrame(columns=['Cohort Flow', '', 'N',])
     rows = []
@@ -150,7 +431,7 @@ class TableFlows:
 
 
       rows.append({'Cohort Flow': label,
-                   '': 'Inital' + suffix,
+                   '': 'Initial' + suffix,
                    'N': n0_string})
       
       rows.append({'Cohort Flow': label,
@@ -183,18 +464,21 @@ class TableCharacteristics:
       missingness: Optional[bool] = True,
       label_suffix: Optional[bool] = True,
       rename: Optional[dict] = None,
-  ) -> pd.DataFrame:
+  ) -> None:
         
-    if not isinstance(dfs, list) or len(dfs) < 1:
-        raise ValueError("dfs must be a list with length ≥ 1")
+    if not isinstance(dfs, list) or len(dfs) < 2:
+        raise ValueError("dfs must be a list with length ≥ 2")
     
-    if not isinstance(categorical, list):
+    if (categorical is None) & (normal is None) & (nonnormal is None):
+        raise ValueError("At least one of categorical, normal, or nonnormal must be provided")
+       
+    if (categorical is not None) & (not isinstance(categorical, list)):
         raise ValueError("categorical must be a list")
 
-    if not isinstance(normal, list):
+    if (normal is not None) & (not isinstance(normal, list)):
         raise ValueError("normal must be a list")
     
-    if not isinstance(nonnormal, list):
+    if (nonnormal is not None) & (not isinstance(nonnormal, list)):
         raise ValueError("nonnormal must be a list")
     
     if not isinstance(decimals, int) or decimals < 0:
@@ -218,13 +502,26 @@ class TableCharacteristics:
     if not isinstance(label_suffix, bool):
         raise ValueError("label_suffix must be a boolean")
     
-    if not isinstance(rename, dict):
-        raise ValueError("rename must be a dictionary")
+    if (rename is not None) & (not isinstance(rename, dict)):
+      raise ValueError("rename must be a dictionary")
     
     self._dfs = dfs
-    self._categorical = categorical
-    self._normal = normal
-    self._nonnormal = nonnormal
+
+    if categorical is None:
+      self._categorical = []
+    else:
+       self._categorical = categorical
+      
+    if normal is None:
+      self._normal = []
+    else:
+      self._normal = normal
+    
+    if nonnormal is None:
+      self._nonnormal = []
+    else:
+      self._nonnormal = nonnormal
+
     self._decimals = decimals
     self._missingness = missingness
     self._format_cat = format_cat
@@ -232,11 +529,45 @@ class TableCharacteristics:
     self._format_nonnormal = format_nonnormal
     self._thousands_sep = thousands_sep
     self._label_suffix = label_suffix
-    self._rename = rename
+    
+    if rename is not None:
+      self._rename = rename
+    else:
+       self._rename = dict()
 
-    self.table = self._build()
+    if rename is not None:
+      if self._label_suffix:
+          self._renamed_categorical = [
+             self._rename[c] + ', ' + self._format_cat if c in self._rename.keys() else c for c in self._categorical
+          ]
+          
+          self._renamed_normal = [
+              self._rename[n] + ', ' + self._format_normal if n in self._rename.keys() else n 
+              for n in self._normal
+          ]
 
-    return self.table
+          self._renamed_nonnormal = [
+              self._rename[nn] + ', ' + self._format_nonnormal if nn in self._rename.keys() else nn 
+              for nn in self._nonnormal
+          ]
+
+
+      else:
+        self._renamed_categorical = [
+            self._rename[c] if c in self._rename.keys() else c 
+            for c in self._categorical
+        ]
+
+        self._renamed_normal = [
+            self._rename[n] if n in self._rename.keys() else n 
+            for n in self._normal
+        ]
+
+        self._renamed_nonnormal = [
+            self._rename[nn] if nn in self._rename.keys() else nn 
+            for nn in self._nonnormal
+        ]
+      
 
   # method to get the unique values, before any exclusion (at i=0)
   def _get_original_uniques(self, cols):
@@ -405,7 +736,7 @@ class TableCharacteristics:
     
     return self._rename[col], df_dists.rename(index={col: self._rename[col]})
   
-  def _build(self):
+  def view(self):
 
     table = pd.DataFrame()
 
@@ -497,18 +828,21 @@ class TableDrifts():
       decimals: Optional[int] = 1,
       missingness: Optional[bool] = True,
       rename: Optional[dict] = None,
-  ) -> pd.DataFrame:
+  ) -> None:
     
     if not isinstance(dfs, list) or len(dfs) < 1:
         raise ValueError("dfs must be a list with length ≥ 1")
     
-    if not isinstance(categorical, list):
+    if (categorical is None) & (normal is None) & (nonnormal is None):
+        raise ValueError("At least one of categorical, normal, or nonnormal must be provided")
+    
+    if (categorical is not None) & (not isinstance(categorical, list)):
         raise ValueError("categorical must be a list")
-
-    if not isinstance(normal, list):
+    
+    if (normal is not None) & (not isinstance(normal, list)):
         raise ValueError("normal must be a list")
     
-    if not isinstance(nonnormal, list):
+    if (nonnormal is not None) & (not isinstance(nonnormal, list)):
         raise ValueError("nonnormal must be a list")
     
     if not isinstance(decimals, int) or decimals < 0:
@@ -518,18 +852,36 @@ class TableDrifts():
         raise ValueError("rename must be a dictionary")
     
     self._dfs = dfs
-    self._categorical = categorical
-    self._normal = normal
-    self._nonnormal = nonnormal
+    if categorical is None:
+      self._categorical = []
+    else:
+      self._categorical = categorical
+
+    if normal is None:
+      self._normal = []
+    else:
+      self._normal = normal
+
+    if nonnormal is None:
+      self._nonnormal = []
+    else:
+      self._nonnormal = nonnormal
+
     self._decimals = decimals
     self._missingness = missingness
+
     self._rename = rename
+    # make rename have the same keys as the original variable names if no rename
+    for c in self._categorical + self._normal + self._nonnormal:
+      if c not in rename.keys():
+        self._rename[c] = c
+
   
     self._table_flows = TableFlows(
       dfs,
       label_suffix=False,
       thousands_sep=False,
-    ).table
+    ).view()
 
     self._table_characteristics = TableCharacteristics(
       dfs,
@@ -544,7 +896,7 @@ class TableDrifts():
       thousands_sep=False,
       label_suffix=False,
       rename=self._rename,
-    ).table
+    ).view()
 
     # auxiliary tables
     self._table_cat_n = TableCharacteristics(
@@ -560,7 +912,7 @@ class TableDrifts():
       missingness=self._missingness,
       label_suffix=False,
       rename=self._rename,
-    ).table
+    ).view()
 
     self._table_cat_perc = TableCharacteristics(
       dfs,
@@ -575,14 +927,11 @@ class TableDrifts():
       missingness=self._missingness,
       label_suffix=False,
       rename=self._rename,
-    ).table
-
-    self.table = self._build()
-
-    return self.table
+    ).view()
 
 
-  def _build(self):
+
+  def view(self):
 
     inverse_rename = {value: key for key, value in self._rename.items()}
 
@@ -629,6 +978,61 @@ class TableDrifts():
           )
           
     return table
+  
+
+  def view_simple(self):
+
+    inverse_rename = {value: key for key, value in self._rename.items()}
+
+    cols = self._table_characteristics.index.get_level_values(0).unique()
+
+    # remove 'Overall' from cols
+    cols = [c for c in cols if c != 'Overall']
+
+    table = pd.DataFrame(index=cols,
+                         columns=self._table_flows.columns)
+    
+    for i, index_name in enumerate(cols):
+      for j, column_name in enumerate(self._table_flows.columns):
+        # skip if index_name is 'Overall' or 'Missing'
+        if (index_name == 'Overall'): # | (index_name[1] == 'Missing'):
+          table.iloc[i,j] = ''
+          continue
+
+        # use cat_smd for categorical variables
+        if inverse_rename[index_name] in self._categorical:
+          cat_n_0 = self._table_cat_n.loc[index_name, :].iloc[:, j].to_list()
+          cat_perc_0 = self._table_cat_perc.loc[index_name, :].iloc[:, j].to_list()
+          cat_n_1 = self._table_cat_n.loc[index_name, :].iloc[:, j+1].to_list()
+          cat_perc_1 = self._table_cat_perc.loc[index_name, :].iloc[:, j+1].to_list()
+          table.iloc[i,j] = self._cat_smd(
+             prop1=[c/100 for c in cat_perc_0],
+             prop2=[c/100 for c in cat_perc_1],
+             n1=cat_n_0,
+             n2=cat_n_1,
+             unbiased=False
+          )
+
+        # use cont_smd for continuous variables
+        elif (inverse_rename[index_name] in self._normal) | (inverse_rename[index_name] in self._nonnormal):
+          mean_0 = self._table_cat_n.loc[(index_name, ' '), :].iloc[j]
+          sd_0 = self._table_cat_perc.loc[(index_name, ' '), :].iloc[j]
+          mean_1 = self._table_cat_n.loc[(index_name, ' '), :].iloc[j+1]
+          sd_1 = self._table_cat_perc.loc[(index_name, ' '), :].iloc[j+1]
+          n_0 = self._table_characteristics.loc[('Overall', ' '), :].iloc[j]
+          n_1 = self._table_characteristics.loc[('Overall', ' '), :].iloc[j+1]
+          table.iloc[i,j] = self._cont_smd(
+             mean1=mean_0,
+             mean2=mean_1,
+             sd1=sd_0,
+             sd2=sd_1,
+             n1=n_0,
+             n2=n_1,
+             unbiased=False
+          )
+          
+    return table
+
         
 
   # adapted from: https://github.com/tompollard/tableone/blob/main/tableone/tableone.py#L659
@@ -764,3 +1168,276 @@ class TableDrifts():
         # se = np.sqrt(v_g)
 
     return np.round(smd, self._decimals)
+
+
+class FlowDiagram:
+    def __init__(self,
+                 table_flows: TableFlows,
+                 table_characteristics: TableCharacteristics = None,
+                 table_drifts: TableDrifts = None,
+                 new_cohort_labels: list = None,
+                 exclusion_labels: list = None,
+                 box_width: int = 2.5,
+                 box_height: int = 1,
+                 plot_dists: bool = True,
+                 smds: bool = True,
+                 legend: bool = True,
+                 legend_with_vars: bool = True,
+                 output_folder: str = 'imgs',
+                 output_file: str = 'flow_diagram',
+                 display_flow_diagram: bool = True,
+                 ):
+        
+        if (table_characteristics is None) & (plot_dists):
+            raise ValueError("table_characteristics must be provided if plot_dists is True")
+        
+        if (table_drifts is None) & (smds):
+            raise ValueError("table_drifts must be provided if smds is True")
+        
+        self.table_flows = table_flows.view()
+        self.table_characteristics = table_characteristics
+        self.table_drifts = table_drifts
+    
+
+        if new_cohort_labels is None:
+            new_cohort_labels = [f'Cohort {i},\n ___ subjects' for i in range(len(table_flows.view().columns))]
+
+        if exclusion_labels is None:
+            exclusion_labels = [f'Exclusion {i},\n ___ subjects' for i in range(len(table_flows.view().columns))]
+
+        self.cohort_labels = new_cohort_labels
+        self.exclusion_labels = exclusion_labels
+        self.width = box_width
+        self.height = box_height
+        self.plot_dists = plot_dists
+
+        if self.plot_dists == False:
+          self.smds = False
+          self.legend = False
+          self.legend_with_vars = False
+           
+
+        self.smds = smds
+        self.legend = legend
+        self.legend_with_vars = legend_with_vars
+        self.output_file = output_file
+        self.output_folder = output_folder
+
+        # Create the imgs folder if it does not exist
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
+
+        self.output_path = os.path.join(self.output_folder, self.output_file)
+        self.display = display_flow_diagram
+
+
+    def _plot_dists(self):
+
+        # Extract data from table_characteristics
+        categorical = self.table_characteristics._renamed_categorical
+
+        table = self.table_characteristics.view()
+        if self.smds:
+          table_smds = self.table_drifts.view_simple()
+
+        vars = table.loc[
+            table.index.get_level_values(0) != 'Overall'
+        ].index.get_level_values(0).unique().tolist()
+
+        cohorts = table.columns.get_level_values(1).unique().tolist()
+
+        # Define the legend handles (empty for now)
+        legend_handles = []
+        legend_labels = []
+
+        # Iterate through Cohort number
+        for c, coh in enumerate(cohorts):
+            fig, axes = plt.subplots(1, 1, figsize=(4, 2), dpi=150)
+            
+            # Iterate through variables
+            for v, var in enumerate(vars):
+                
+                if var in categorical:
+                    values_names = table.loc[
+                        table.index.get_level_values(0) == var
+                    ].index.get_level_values(1)
+
+                    cum_width = 0
+                    for val in values_names:
+                        value = table.loc[(var, val), ('Cohort', coh)]
+                        if val != 'Missing':
+                            bar = axes.barh(v, value, left=cum_width, height=.8, edgecolor='white')
+                            textcolor = 'white'
+                            if coh == 0:
+                                legend_handles.append(bar[0])
+                                if self.legend_with_vars:
+                                    legend_labels.append(f"{var}: {val}")
+                                else:
+                                    legend_labels.append(val)
+                        else:
+                            bar = axes.barh(v, value, left=cum_width, height=.8, color='lightgray',
+                                        hatch='///////', edgecolor='white')
+                            textcolor = 'black'
+                            if (coh == 0) & ('Missing' not in legend_labels):
+                                legend_handles.append(bar[0])
+                                legend_labels.append('Missing')
+
+                        if value > 5:
+                            axes.text(cum_width + value/2, v, '{:.1f}'.format(value),
+                                    ha='center', va='center', color=textcolor, fontsize=8)
+                        cum_width += value
+                        
+                else:
+                    value = table.loc[(var, ' '), ('Cohort', coh)]
+                    axes.barh(v, 100, left=0, height=.8, color='lavender', edgecolor='white')
+                    axes.text(50, v, f"{value}", ha='center', va='center', color='black', fontsize=8)
+                    
+                    if (coh > 0) & (val != 'Missing') & (self.smds):
+                        col_name = f"{coh-1} to {coh}"
+                        var_smd = var.split(',')[0]
+                        smd = table_smds.loc[(var_smd, ' '), (col_name)]
+                        axes.text(-1, v, f'{smd}', ha='right', va='center', fontsize=8, color='black', fontweight='normal')
+                
+                axes.text(101, v, var, ha='left', va='center', fontsize=8, color='black', fontweight='normal')
+                if (coh > 0) & (self.smds):
+                    col_name = f"{coh-1} to {coh}"
+                    var_smd = var.split(',')[0]
+                    smd = table_smds.loc[var_smd, (col_name)]
+                    axes.text(-1, v, f'{smd}', ha='right', va='center', fontsize=6, color='black', fontweight='normal')
+
+            if self.smds:
+                if coh > 0:
+                    color_smd = 'black'
+                    text_smd = f'SMD ({coh-1}, {coh})'
+                elif coh == 0:
+                    color_smd = 'white'
+                    text_smd = f'SMD (0, 0)'
+                
+                axes.text(-1, v + .75, text_smd, ha='right', va='center', fontsize=6, color=color_smd, fontweight='bold')
+
+            axes.set_yticks([])
+            axes.set_xticks([])
+            for spine in axes.spines.values():
+                spine.set_visible(False)
+
+            if coh == 0:
+                # move 'Missing' to the end of the legend
+                missing_idx = legend_labels.index('Missing')
+                legend_labels.append(legend_labels.pop(missing_idx))
+                legend_handles.append(legend_handles.pop(missing_idx))
+
+                # create a separate figure for the legend
+                legend_fig, legend_ax = plt.subplots(figsize=(len(legend_labels)/4, 1))  # Adjust figsize as necessary
+                legend_ax.axis('off')
+                fig_legend = legend_ax.legend(legend_handles, legend_labels, loc='center', ncol=1,
+                                            fontsize=8, frameon=False)
+
+                # save the legend figure
+                legend_fig.savefig('imgs/legend.svg', dpi=300, bbox_inches='tight')
+
+                # close the legend figure
+                plt.close(legend_fig)
+
+            plt.savefig(f'imgs/part{c}.svg', dpi=300, bbox_inches='tight')
+            plt.close()
+
+
+    def view(self):
+
+        # generate all auxiliary plots
+        if self.plot_dists:
+          self._plot_dists()
+        
+        dot = graphviz.Digraph(
+            comment='Cohort Exclusion Process',
+            format='svg',
+            graph_attr={'fontname': 'Helvetica', 'splines': 'ortho'},
+            node_attr={'shape': 'box', 'style': 'filled', 'fillcolor': 'white', 'fixedsize': 'true',
+                       'width': str(self.width), 'height': str(self.height), 'fontname': 'Helvetica'},  
+            edge_attr={'dir': 'forward', 'arrowhead': 'vee', 'arrowsize': '0.5', 'minlen': '1'},
+        )
+
+        columns = self.table_flows.columns.tolist()
+        num_columns = len(columns)
+
+        # Add main cohort nodes with initial counts
+        initial_counts = self.table_flows.loc['Initial, n']
+        for i, (count, column) in enumerate(zip(initial_counts, columns)):
+            node_label = self.cohort_labels[i].replace('___', f'{count}')
+            dot.node(f'A{i}', node_label, shape='box', fontname='Helvetica')
+
+        # Add final cohort node
+        final_node_label = self.cohort_labels[-1]
+        final_node_label = final_node_label.replace('___', f'{self.table_flows.loc['Result, n'].iloc[-1]}')
+        dot.node(f'A{num_columns}', final_node_label, shape='box', fontname='Helvetica')
+
+        if self.plot_dists:
+          # Add final distribution plot node
+          dot.node(f'plot_dist{num_columns}', label='',  image=f'part{num_columns}.svg',
+                  imagepos='bc',  imagescale='true',
+                  shape='box', color='transparent',
+                  width=str(self.width+0.5),
+                  height=str(self.height+0.2))
+
+          with dot.subgraph() as s:
+              s.attr(rank='same')
+              s.node(f'A{num_columns}')
+              s.node(f'plot_dist{num_columns}')
+
+        # Add exclusion criteria nodes with removed counts
+        removed_counts = self.table_flows.loc['Removed, n']
+        for i, (count, column) in enumerate(zip(removed_counts, columns)):
+            node_label = self.exclusion_labels[i].replace('___', f'{count}')
+            dot.node(f'E{i}', node_label, shape='box', style='filled', fillcolor='floralwhite')
+
+        # Add invisible nodes for positioning
+        for i in range(num_columns + 1):
+            dot.node(f'IA{i}', '', shape='point', height='0')
+
+        # connect the main cohort nodes
+        for i in range(num_columns):
+            dot.edge(f'A{i}', f'IA{i}', arrowhead='none')
+            dot.edge(f'IA{i}', f'A{i+1}', )
+
+        # connect the exclusion nodes to the hidden nodes
+        for i in range(num_columns):
+            dot.edge(f'IA{i}', f'E{i}', constraint='false')
+        
+        # Adjust ranks to position nodes horizontally for exclusions
+        for i in range(num_columns):
+            with dot.subgraph() as s:
+                s.attr(rank='same')
+                s.node(f'IA{i}')
+                s.node(f'E{i}')
+
+        if self.plot_dists:
+          # Add boxes for the distributions
+          for i in range(num_columns):
+              dot.node(f'plot_dist{i}', label='', image=f'part{i}.svg',
+                  imagepos='bc', imagescale='true',
+                  shape='box', color='transparent',
+                  width=str(self.width+0.75),
+                  height=str(self.height+0.2))
+              dot.edge(f'A{i}', f'plot_dist{i}', constraint='false', style='invis')
+              with dot.subgraph() as s:
+                  s.attr(rank='same')
+                  s.node(f'A{i}')
+                  s.node(f'plot_dist{i}')
+
+        if self.legend:
+          # Add a final node for the legend
+          dot.node('legend', label='', image=f'legend.svg', imagescale='true',
+                  shape='box', color='transparent',
+                  imagepos='bl',
+                  width=str(self.width),
+                  height=str(self.height+0.2))
+
+          # Connect the final cohort node to the legend from the first exclusion edge
+          dot.edge(f'E0', 'legend', style='invis')
+          with dot.subgraph() as s:
+              s.attr(rank='same')
+              s.node(f'E0')
+              s.node('legend')
+        
+        # Save and render the graph
+        dot.render(self.output_path, view=self.display, format='pdf')
