@@ -6,7 +6,7 @@ digraph {
 	A0 [label="100,000 patients
 MIMIC-IV" fontname=Helvetica shape=box]
 	A1 [label="49,914 patients
-Cohort 1" fontname=Helvetica shape=box]
+with English Proficiency data" fontname=Helvetica shape=box]
 	A2 [label="44,137 patients
 adults only" fontname=Helvetica shape=box]
 	plot_dist2 [label="" color=transparent height=1.2 image="part2.svg" imagepos=bc imagescale=true shape=box width=3.0]

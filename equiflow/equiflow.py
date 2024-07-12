@@ -567,6 +567,16 @@ class TableCharacteristics:
             self._rename[nn] if nn in self._rename.keys() else nn 
             for nn in self._nonnormal
         ]
+
+    else:
+      if self._label_suffix:
+        self._renamed_categorical = [c + ', ' + self._format_cat for c in self._categorical]
+        self._renamed_normal = [n + ', ' + self._format_normal for n in self._normal]
+        self._renamed_nonnormal = [nn + ', ' + self._format_nonnormal for nn in self._nonnormal]
+      else:
+        self._renamed_categorical = self._categorical
+        self._renamed_normal = self._normal
+        self._renamed_nonnormal = self._nonnormal
       
 
   # method to get the unique values, before any exclusion (at i=0)
@@ -848,7 +858,7 @@ class TableDrifts():
     if not isinstance(decimals, int) or decimals < 0:
         raise ValueError("decimals must be a non-negative integer")
     
-    if not isinstance(rename, dict):
+    if (rename is not None) & (not isinstance(rename, dict)):
         raise ValueError("rename must be a dictionary")
     
     self._dfs = dfs
@@ -870,10 +880,14 @@ class TableDrifts():
     self._decimals = decimals
     self._missingness = missingness
 
-    self._rename = rename
+    if rename is None:
+      self._rename = dict()
+    else:
+      self._rename = rename
+
     # make rename have the same keys as the original variable names if no rename
     for c in self._categorical + self._normal + self._nonnormal:
-      if c not in rename.keys():
+      if c not in self._rename.keys():
         self._rename[c] = c
 
   
