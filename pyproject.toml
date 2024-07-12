@@ -22,11 +22,8 @@ classifiers = [
 dependencies = [
     "numpy",
     "pandas",
-    "scipy",
-    "statsmodels",
-    "tabulate",
-    "Jinja2",
-    "openpyxl",
+    "graphviz",
+    "matplotlib"
 ]
 
 [tool.black]

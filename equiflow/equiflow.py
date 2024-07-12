@@ -29,7 +29,9 @@ class EquiFlow:
                rename: Optional[dict] = None,
 
                ) -> None:
+    """
     
+    """
     
     if (data is None) & (dfs is None):
       raise ValueError("Either data or dfs must be provided")
@@ -1381,7 +1383,7 @@ class FlowDiagram:
 
         # Add final cohort node
         final_node_label = self.cohort_labels[-1]
-        final_node_label = final_node_label.replace('___', f'{self.table_flows.loc['Result, n'].iloc[-1]}')
+        final_node_label = final_node_label.replace('___', f"{self.table_flows.loc['Result, n'].iloc[-1]}")
         dot.node(f'A{num_columns}', final_node_label, shape='box', fontname='Helvetica')
 
         if self.plot_dists:

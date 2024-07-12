@@ -4,39 +4,26 @@ digraph {
 	node [fillcolor=white fixedsize=true fontname=Helvetica height=1 shape=box style=filled width=2.5]
 	edge [arrowhead=vee arrowsize=0.5 dir=forward minlen=1]
 	A0 [label="100,000 patients
-MIMIC-IV" fontname=Helvetica shape=box]
-	A1 [label="49,914 patients
+in MIMIC-IV" fontname=Helvetica shape=box]
+	A1 [label="66,397 patients
 with English Proficiency data" fontname=Helvetica shape=box]
-	A2 [label="44,137 patients
-adults only" fontname=Helvetica shape=box]
-	plot_dist2 [label="" color=transparent height=1.2 image="part2.svg" imagepos=bc imagescale=true shape=box width=3.0]
+	plot_dist1 [label="" color=transparent height=1.2 image="part1.svg" imagepos=bc imagescale=true shape=box width=3.0]
 	{
 		rank=same
-		A2
-		plot_dist2
+		A1
+		plot_dist1
 	}
-	E0 [label="50,086 patients excluded for
+	E0 [label="33,603 patients excluded for
 missing English Proficiency" fillcolor=floralwhite shape=box style=filled]
-	E1 [label="5,777 patients excluded for
-age < 18" fillcolor=floralwhite shape=box style=filled]
 	IA0 [label="" height=0 shape=point]
 	IA1 [label="" height=0 shape=point]
-	IA2 [label="" height=0 shape=point]
 	A0 -> IA0 [arrowhead=none]
 	IA0 -> A1
-	A1 -> IA1 [arrowhead=none]
-	IA1 -> A2
 	IA0 -> E0 [constraint=false]
-	IA1 -> E1 [constraint=false]
 	{
 		rank=same
 		IA0
 		E0
-	}
-	{
-		rank=same
-		IA1
-		E1
 	}
 	plot_dist0 [label="" color=transparent height=1.2 image="part0.svg" imagepos=bc imagescale=true shape=box width=3.25]
 	A0 -> plot_dist0 [constraint=false style=invis]
@@ -44,13 +31,6 @@ age < 18" fillcolor=floralwhite shape=box style=filled]
 		rank=same
 		A0
 		plot_dist0
-	}
-	plot_dist1 [label="" color=transparent height=1.2 image="part1.svg" imagepos=bc imagescale=true shape=box width=3.25]
-	A1 -> plot_dist1 [constraint=false style=invis]
-	{
-		rank=same
-		A1
-		plot_dist1
 	}
 	legend [label="" color=transparent height=1.2 image="legend.svg" imagepos=bl imagescale=true shape=box width=2.5]
 	E0 -> legend [style=invis]
