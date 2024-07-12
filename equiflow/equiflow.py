@@ -1302,23 +1302,26 @@ class FlowDiagram:
                                     ha='center', va='center', color=textcolor, fontsize=8)
                         cum_width += value
                         
+                    if (coh > 0) & (self.smds):
+                        col_name = f"{coh-1} to {coh}"
+                        var_smd = var.split(',')[0]
+                        smd = table_smds.loc[var_smd, (col_name)]
+                        axes.text(-1, v, f'{smd}', ha='right', va='center', fontsize=8, color='black', fontweight='normal')
+
                 else:
-                    value = table.loc[(var, ' '), ('Cohort', coh)]
+                    val = ' '
+                    value = table.loc[(var, val), ('Cohort', coh)]
                     axes.barh(v, 100, left=0, height=.8, color='lavender', edgecolor='white')
                     axes.text(50, v, f"{value}", ha='center', va='center', color='black', fontsize=8)
                     
                     if (coh > 0) & (val != 'Missing') & (self.smds):
                         col_name = f"{coh-1} to {coh}"
                         var_smd = var.split(',')[0]
-                        smd = table_smds.loc[(var_smd, ' '), (col_name)]
+                        smd = table_smds.loc[(var_smd), (col_name)]
                         axes.text(-1, v, f'{smd}', ha='right', va='center', fontsize=8, color='black', fontweight='normal')
                 
                 axes.text(101, v, var, ha='left', va='center', fontsize=8, color='black', fontweight='normal')
-                if (coh > 0) & (self.smds):
-                    col_name = f"{coh-1} to {coh}"
-                    var_smd = var.split(',')[0]
-                    smd = table_smds.loc[var_smd, (col_name)]
-                    axes.text(-1, v, f'{smd}', ha='right', va='center', fontsize=6, color='black', fontweight='normal')
+
 
             if self.smds:
                 if coh > 0:
@@ -1328,7 +1331,7 @@ class FlowDiagram:
                     color_smd = 'white'
                     text_smd = f'SMD (0, 0)'
                 
-                axes.text(-1, v + .75, text_smd, ha='right', va='center', fontsize=6, color=color_smd, fontweight='bold')
+                axes.text(-1, v + .75, text_smd, ha='right', va='center', fontsize=8, color=color_smd, fontweight='bold')
 
             axes.set_yticks([])
             axes.set_xticks([])
@@ -1426,7 +1429,7 @@ class FlowDiagram:
                 s.node(f'E{i}')
 
         if self.plot_dists:
-          # Add boxes for the distributions
+          # Add boxes for the distributions``
           for i in range(num_columns):
               dot.node(f'plot_dist{i}', label='', image=f'part{i}.svg',
                   imagepos='bc', imagescale='true',
