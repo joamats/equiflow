@@ -538,34 +538,32 @@ class TableCharacteristics:
     if rename is not None:
       if self._label_suffix:
           self._renamed_categorical = [
-             self._rename[c] + ', ' + self._format_cat if c in self._rename.keys() else c for c in self._categorical
+             self._rename[c] + ', ' + self._format_cat if c in self._rename.keys() \
+              else c + ', ' + self._format_cat for c in self._categorical
           ]
           
           self._renamed_normal = [
-              self._rename[n] + ', ' + self._format_normal if n in self._rename.keys() else n 
-              for n in self._normal
+              self._rename[n] + ', ' + self._format_normal if n in self._rename.keys() \
+              else n + ', ' + self._format_normal for n in self._normal
           ]
 
           self._renamed_nonnormal = [
-              self._rename[nn] + ', ' + self._format_nonnormal if nn in self._rename.keys() else nn 
-              for nn in self._nonnormal
+              self._rename[nn] + ', ' + self._format_nonnormal if nn in self._rename.keys() \
+              else nn + ', ' + self._format_nonnormal for nn in self._nonnormal
           ]
 
 
       else:
         self._renamed_categorical = [
-            self._rename[c] if c in self._rename.keys() else c 
-            for c in self._categorical
+            self._rename[c] if c in self._rename.keys() else c for c in self._categorical
         ]
 
         self._renamed_normal = [
-            self._rename[n] if n in self._rename.keys() else n 
-            for n in self._normal
+            self._rename[n] if n in self._rename.keys() else n for n in self._normal
         ]
 
         self._renamed_nonnormal = [
-            self._rename[nn] if nn in self._rename.keys() else nn 
-            for nn in self._nonnormal
+            self._rename[nn] if nn in self._rename.keys() else nn for nn in self._nonnormal
         ]
 
     else:
@@ -577,7 +575,7 @@ class TableCharacteristics:
         self._renamed_categorical = self._categorical
         self._renamed_normal = self._normal
         self._renamed_nonnormal = self._nonnormal
-      
+
 
   # method to get the unique values, before any exclusion (at i=0)
   def _get_original_uniques(self, cols):
@@ -755,7 +753,8 @@ class TableCharacteristics:
 
     for i, df in enumerate(self._dfs):
 
-      df_dists = pd.DataFrame()
+      index = pd.MultiIndex(levels=[[], []], codes=[[], []], names=['variable', 'index'])
+      df_dists = pd.DataFrame(columns=['value'], index=index)
 
       # get distribution for categorical variables
       for col in self._categorical:
@@ -764,7 +763,7 @@ class TableCharacteristics:
 
         melted_counts = pd.melt(counts.reset_index(), id_vars=['index']) \
                           .set_index(['variable','index'])
-
+        
         df_dists = pd.concat([df_dists, melted_counts], axis=0)
 
         if self._missingness:
@@ -782,7 +781,7 @@ class TableCharacteristics:
       for col in self._normal:
   
           df_dists = self._normal_vars_dist(df, col, df_dists)
-          
+
           if self._missingness:
             df_dists = self._add_missing_counts(df, col, df_dists)
 

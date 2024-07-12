@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2024-07-11T23:54:00.276422</dc:date>
+    <dc:date>2024-07-12T08:34:06.544188</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -43,7 +43,7 @@ L 97.819125 123.503438
 L 97.819125 94.703438 
 L 44.888839 94.703438 
 z
-" clip-path="url(#pac1a16ab1f)" style="fill: #1f77b4; stroke: #ffffff; stroke-linejoin: miter"/>
+" clip-path="url(#pef977bacfd)" style="fill: #1f77b4; stroke: #ffffff; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 97.819125 123.503438 
@@ -51,7 +51,7 @@ L 150.961982 123.503438
 L 150.961982 94.703438 
 L 97.819125 94.703438 
 z
-" clip-path="url(#pac1a16ab1f)" style="fill: #ff7f0e; stroke: #ffffff; stroke-linejoin: miter"/>
+" clip-path="url(#pef977bacfd)" style="fill: #ff7f0e; stroke: #ffffff; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 150.961982 123.503438 
@@ -59,7 +59,7 @@ L 257.460268 123.503438
 L 257.460268 94.703438 
 L 150.961982 94.703438 
 z
-" clip-path="url(#pac1a16ab1f)" style="fill: url(#h02644d16eb); stroke: #ffffff; stroke-linejoin: miter"/>
+" clip-path="url(#pef977bacfd)" style="fill: url(#hb07485db12); stroke: #ffffff; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
     <path d="M 44.888839 87.503438 
@@ -67,7 +67,7 @@ L 257.460268 87.503438
 L 257.460268 58.703438 
 L 44.888839 58.703438 
 z
-" clip-path="url(#pac1a16ab1f)" style="fill: #e6e6fa; stroke: #ffffff; stroke-linejoin: miter"/>
+" clip-path="url(#pef977bacfd)" style="fill: #e6e6fa; stroke: #ffffff; stroke-linejoin: miter"/>
    </g>
    <g id="patch_7">
     <path d="M 44.888839 51.503437 
@@ -75,7 +75,7 @@ L 257.460268 51.503437
 L 257.460268 22.703437 
 L 44.888839 22.703437 
 z
-" clip-path="url(#pac1a16ab1f)" style="fill: #e6e6fa; stroke: #ffffff; stroke-linejoin: miter"/>
+" clip-path="url(#pef977bacfd)" style="fill: #e6e6fa; stroke: #ffffff; stroke-linejoin: miter"/>
    </g>
    <g id="matplotlib.axis_1"/>
    <g id="matplotlib.axis_2"/>
@@ -977,12 +977,12 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="pac1a16ab1f">
+  <clipPath id="pef977bacfd">
    <rect x="44.888839" y="17.663438" width="223.2" height="110.88"/>
   </clipPath>
  </defs>
  <defs>
-  <pattern id="h02644d16eb" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
+  <pattern id="hb07485db12" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
    <rect x="0" y="0" width="73" height="73" fill="#d3d3d3"/>
    <path d="M -36 36 
 L 36 -36 
