@@ -1,6 +1,6 @@
 # -- Project information
 
-project = 'equiFlow'
+project = 'equiflow'
 copyright = '2024, João Matos'
 author = 'João Matos'
 
