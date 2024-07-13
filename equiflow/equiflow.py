@@ -1853,6 +1853,9 @@ class FlowDiagram:
               s.node('legend')
         
         # Save and render the graph
-        dot.render(self.output_path, view=self.display, format='png')
+        # dot.render(self.output_path, view=self.display, format='png')
         # dot.render(self.output_path, view=self.display, format='svg')
-        # dot.render(self.output_path, view=self.display, format='pdf')
+        # dot.render(self.output_path, view=self.display, format='pdf')        
+        dot.render(self.output_path + '_png', view=self.display, format='png')
+        dot.render(self.output_path + '_svg', view=self.display, format='svg')
+        dot.render(self.output_path + '_pdf', view=self.display, format='pdf')
