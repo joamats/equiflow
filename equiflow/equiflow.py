@@ -12,6 +12,56 @@ import graphviz
 
 
 class EquiFlow:
+  """
+  A class to manage equiflow's related function and classes.
+
+  Parameters 
+  ----------
+
+  data : pd.DataFrame, optional
+    The data to be analyzed, with the original cohort. Either data or dfs must be provided.
+
+  dfs : list, optional
+    A list of dataframes, with each dataframe representing a different cohort. Either data or dfs must be provided.
+
+  initial_cohort_label : str, optional
+    The label for the initial cohort. Default is 'Initial Cohort'.
+
+  label_suffix : bool, optional
+    Whether to add a suffix to the variable names. Default is True.
+
+  thousands_sep : bool, optional
+    Whether to add a thousands separator to the counts. Default is True.
+
+  categorical : list, optional
+    A list of categorical variables to be analyzed. Default is None.
+
+  normal : list, optional
+    A list of normally distributed variables to be analyzed. Default is None.
+
+  nonnormal : list, optional
+    A list of non-normally distributed variables to be analyzed. Default is None.
+
+  decimals : int, optional
+    The number of decimals to be used in the output. Default is 1.
+
+  format_cat : str, optional
+    The format for categorical variables. Default is 'N (%)'. Options include '%', 'N', or 'N (%)'.
+
+  format_normal : str, optional
+    The format for normally distributed variables. Default is 'Mean ± SD'. Options include 'Mean ± SD', 'Mean', or 'SD'.
+
+  format_nonnormal : str, optional
+    The format for non-normally distributed variables. Default is 'Median [IQR]'. Options include 'Median [IQR]', 'Mean', or 'SD'.
+
+  missingness : bool, optional
+    Whether to include missingness in the output. Default is True.
+
+  rename : dict, optional
+    A dictionary to rename variables. Default is None.  
+  
+  """
+
   def __init__(self,
                data: Optional[pd.DataFrame] = None,
                dfs: Optional[list] = None,
@@ -29,9 +79,7 @@ class EquiFlow:
                rename: Optional[dict] = None,
 
                ) -> None:
-    """
-    
-    """
+
     
     if (data is None) & (dfs is None):
       raise ValueError("Either data or dfs must be provided")
@@ -115,7 +163,6 @@ class EquiFlow:
       self.new_cohort_labels[0] = 'Initial Cohort'
 
 
-
   # method to categorize missing values under the same label
   def _clean_missing(self): 
     
@@ -140,6 +187,25 @@ class EquiFlow:
                     exclusion_reason: Optional[str] = None,
                     new_cohort_label: Optional[str] = None,
                     ):
+    
+    """
+    Add an exclusion to the current cohort.
+
+    Parameters
+    ----------
+    mask : bool, optional
+      A boolean mask to exclude rows from the current cohort. Either a mask or a new_cohort must be provided.
+
+    new_cohort : pd.DataFrame, optional
+      A new cohort to be used as the current cohort. Either a mask or a new_cohort must be provided.
+
+    exclusion_reason : str, optional
+      The reason for the exclusion. Default is None.
+
+    new_cohort_label : str, optional
+      The label for the new cohort. Default is None.
+
+    """
     
     if (mask is None) & (new_cohort is None):
       raise ValueError("Either mask or new_cohort must be provided")
@@ -176,6 +242,24 @@ class EquiFlow:
                        label_suffix: Optional[bool] = None,
                        thousands_sep: Optional[bool] = None) -> pd.DataFrame:
     
+    """
+    View the table of cohort flows. Uses the TableFlows class.
+
+    Parameters
+    ----------
+    label_suffix : bool, optional
+      Whether to add a suffix to the variable names. Default is True.
+
+    thousands_sep : bool, optional
+      Whether to add a thousands separator to the counts. Default is True.
+
+    Returns
+    -------
+    pd.DataFrame
+      A table of cohort flows.
+
+    """
+    
     if len(self._dfs) < 2:
       raise ValueError("At least two cohorts must be provided. Please use add_exclusion() to add exclusions.")
     
@@ -206,6 +290,51 @@ class EquiFlow:
                                  missingness: Optional[bool] = None,
                                  label_suffix: Optional[bool] = None,
                                  rename: Optional[dict] = None) -> pd.DataFrame:
+    
+    """
+    View the table of cohort characteristics. Uses the TableCharacteristics class.
+
+    Parameters
+    ----------
+    categorical : list, optional
+      A list of categorical variables to be analyzed. Default is None.
+
+    normal : list, optional
+      A list of normally distributed variables to be analyzed. Default is None.
+
+    nonnormal : list, optional
+      A list of non-normally distributed variables to be analyzed. Default is None.
+
+    decimals : int, optional
+      The number of decimals to be used in the output. Default is 1.
+
+    format_cat : str, optional
+      The format for categorical variables. Default is 'N (%)'. Options include '%', 'N', or 'N (%)'.
+
+    format_normal : str, optional
+      The format for normally distributed variables. Default is 'Mean ± SD'. Options include 'Mean ± SD', 'Mean', or 'SD'.
+
+    format_nonnormal : str, optional
+      The format for non-normally distributed variables. Default is 'Median [IQR]'. Options include 'Median [IQR]', 'Mean', or 'SD'.
+
+    thousands_sep : bool, optional
+      Whether to add a thousands separator to the counts. Default is True.
+
+    missingness : bool, optional
+      Whether to include missingness in the output. Default is True.
+
+    label_suffix : bool, optional
+      Whether to add a suffix to the variable names. Default is True.
+
+    rename : dict, optional
+      A dictionary to rename variables. Default is None.
+
+    Returns
+    -------
+    pd.DataFrame
+      A table of cohort characteristics.
+    
+    """
     
     if len(self._dfs) < 2:
       raise ValueError("At least two cohorts must be provided. Please use add_exclusion() to add exclusions")
@@ -269,6 +398,40 @@ class EquiFlow:
                         missingness: Optional[bool] = None,
                         rename: Optional[dict] = None) -> pd.DataFrame:
     
+    """
+    View the table of cohort drifts. Uses the TableDrifts class.
+    
+    Parameters
+    ----------
+    drifts_by_class : bool, optional
+      Whether to view the drifts by class. Default is False.
+
+    categorical : list, optional
+      A list of categorical variables to be analyzed. Default is None.
+
+    normal : list, optional
+      A list of normally distributed variables to be analyzed. Default is None.
+
+    nonnormal : list, optional
+      A list of non-normally distributed variables to be analyzed. Default is None.
+
+    decimals : int, optional
+      The number of decimals to be used in the output. Default is 1.
+
+    missingness : bool, optional
+      Whether to include missingness in the output. Default is True.
+
+    rename : dict, optional
+      A dictionary to rename variables. Default is None.
+
+    Returns
+    -------
+
+    pd.DataFrame
+      A table of cohort drifts.
+    
+    """
+    
     if len(self._dfs) < 2:
       raise ValueError("At least two cohorts must be provided. Please use add_exclusion() to add exclusions")
 
@@ -320,6 +483,46 @@ class EquiFlow:
                  output_file: Optional[str] = 'flow_diagram',
                  display_flow_diagram: Optional[bool] = True,
                  ) -> None:
+    
+    """
+    Plot the flow diagram. Uses the FlowDiagram class.
+
+    Parameters
+    ----------
+    new_cohort_labels : list, optional
+      The labels for the new cohorts. Default is None.
+
+    exclusion_labels : list, optional
+      The labels for the exclusions. Default is None.
+
+    box_width : int, optional
+      The width of the boxes. Default is 2.5.
+
+    box_height : int, optional
+      The height of the boxes. Default is 1.
+
+    plot_dists : bool, optional
+      Whether to plot the distributions of the new obtained cohorts. Default is True.
+
+    smds : bool, optional
+      Whether to plot the standardized mean differences between consecutive cohorts. Default is True.
+
+    legend : bool, optional
+      Whether to include a legend. Default is True.
+
+    legend_with_vars : bool, optional
+      Whether to include the variables in the legend. Default is True.
+
+    output_folder : str, optional
+      The folder where the image will be saved. Default is 'imgs'.
+
+    output_file : str, optional
+      The name of the image file. Default is 'flow_diagram'.
+
+    display_flow_diagram : bool, optional
+      Whether to display the flow diagram. Default is True.
+
+    """
     
     if len(self._dfs) < 2: 
       raise ValueError("At least two cohorts must be provided. Please use add_exclusion() to add exclusions")
@@ -393,6 +596,24 @@ class TableFlows:
         thousands_sep: Optional[bool] = True,
     ) -> None:
 
+    """
+    
+    A class to create a table of cohort flows.
+
+    Parameters
+    ----------
+
+    dfs : list
+      A list of dataframes, with each dataframe representing a different cohort.
+
+    label_suffix : bool, optional
+      Whether to add a suffix to the variable names. Default is True.
+
+    thousands_sep : bool, optional
+      Whether to add a thousands separator to the counts. Default is True.
+
+    """
+
     if not isinstance(dfs, list) or len(dfs) < 2:
       raise ValueError("dfs must be a list with length ≥ 2")
     
@@ -405,6 +626,15 @@ class TableFlows:
 
 
   def view(self):
+    """
+    View the table of cohort flows.
+
+    Returns
+    -------
+    pd.DataFrame
+      A table of cohort flows. 
+
+    """
 
     table = pd.DataFrame(columns=['Cohort Flow', '', 'N',])
     rows = []
@@ -467,6 +697,49 @@ class TableCharacteristics:
       label_suffix: Optional[bool] = True,
       rename: Optional[dict] = None,
   ) -> None:
+    
+    """
+    A class to create a table of cohort characteristics.
+
+    Parameters
+    ----------
+    dfs : list
+      A list of dataframes, with each dataframe representing a different cohort.
+
+    categorical : list, optional
+      A list of categorical variables to be analyzed. Default is None.
+
+    normal : list, optional
+      A list of normally distributed variables to be analyzed. Default is None.
+
+    nonnormal : list, optional
+      A list of non-normally distributed variables to be analyzed. Default is None.
+
+    decimals : int, optional
+      The number of decimals to be used in the output. Default is 1.
+
+    format_cat : str, optional
+      The format for categorical variables. Default is 'N (%)'. Options include '%', 'N', or 'N (%)'.
+
+    format_normal : str, optional
+      The format for normally distributed variables. Default is 'Mean ± SD'. Options include 'Mean ± SD', 'Mean', or 'SD'.
+
+    format_nonnormal : str, optional
+      The format for non-normally distributed variables. Default is 'Median [IQR]'. Options include 'Median [IQR]', 'Mean', or 'SD'.
+
+    thousands_sep : bool, optional
+      Whether to add a thousands separator to the counts. Default is True.
+
+    missingness : bool, optional
+      Whether to include missingness in the output. Default is True.
+
+    label_suffix : bool, optional
+      Whether to add a suffix to the variable names. Default is True.
+
+    rename : dict, optional
+      A dictionary to rename variables. Default is None.
+
+    """
         
     if not isinstance(dfs, list) or len(dfs) < 2:
         raise ValueError("dfs must be a list with length ≥ 2")
@@ -748,6 +1021,17 @@ class TableCharacteristics:
   
   def view(self):
 
+    """
+
+    View the table of cohort characteristics.
+
+    Returns
+    -------
+    pd.DataFrame
+      A table of cohort characteristics from cohort to cohort.
+    
+    """
+
     table = pd.DataFrame()
 
     # get the unique values, before any exclusion, for categorical variables
@@ -830,6 +1114,34 @@ class TableCharacteristics:
 
 
 class TableDrifts():
+  """
+  A class to create a table of cohort drifts, from i to i+1, in terms of SMDs. 
+
+  Parameters
+  ----------
+
+  dfs : list
+    A list of dataframes, with each dataframe representing a different cohort.
+
+  categorical : list, optional
+    A list of categorical variables to be analyzed. Default is None.
+
+  normal : list, optional
+    A list of normally distributed variables to be analyzed. Default is None.
+
+  nonnormal : list, optional
+    A list of non-normally distributed variables to be analyzed. Default is None.
+
+  decimals : int, optional
+    The number of decimals to be used in the output. Default is 1.
+
+  missingness : bool, optional
+    Whether to include missingness in the output. Default is True.
+
+  rename : dict, optional
+    A dictionary to rename variables. Default is None.
+  """
+
   def __init__(
       self,
       dfs: list,
@@ -840,7 +1152,8 @@ class TableDrifts():
       missingness: Optional[bool] = True,
       rename: Optional[dict] = None,
   ) -> None:
-    
+
+
     if not isinstance(dfs, list) or len(dfs) < 1:
         raise ValueError("dfs must be a list with length ≥ 1")
     
@@ -947,6 +1260,17 @@ class TableDrifts():
 
 
   def view(self):
+    """
+    
+    View the table of cohort drifts, analyzing each variable classes separately.
+
+    Returns
+    -------
+
+    pd.DataFrame
+      A table of cohort drifts, from i to i+1, in terms of SMDs.
+
+    """
 
     inverse_rename = {value: key for key, value in self._rename.items()}
 
@@ -996,6 +1320,17 @@ class TableDrifts():
   
 
   def view_simple(self):
+
+    """
+    
+    View the table of cohort drifts, analyzing each classes as a whole.
+
+    Returns
+    -------
+    pd.DataFrame
+      A table of cohort drifts, from i to i+1, in terms of SMDs
+
+    """
 
     inverse_rename = {value: key for key, value in self._rename.items()}
 
@@ -1186,6 +1521,57 @@ class TableDrifts():
 
 
 class FlowDiagram:
+    
+    """
+    
+    A class to create a flow diagram of the cohort generation process.
+
+    Parameters
+    ----------
+    table_flows : TableFlows
+      A table of cohort flows.
+
+    table_characteristics : TableCharacteristics, optional
+      A table of cohort characteristics. Default is None.
+
+    table_drifts : TableDrifts, optional
+      A table of cohort drifts. Default is None.
+
+    new_cohort_labels : list, optional
+      A list of new cohort labels. Default is None.
+
+    exclusion_labels : list, optional
+      A list of exclusion labels. Default is None.
+
+    box_width : int, optional
+      The width of the boxes. They will be all the same. Default is 2.5.
+
+    box_height : int, optional
+      The height of the boxes. They will be all the same. Default is 1.
+
+    plot_dists : bool, optional
+      Whether to plot the distributions, cohort by cohort. Default is True.
+
+    smds : bool, optional
+      Whether to plot the SMDs. Default is True.
+
+    legend : bool, optional
+      Whether to plot the legend. Default is True.
+
+    legend_with_vars : bool, optional
+      Whether to plot the legend with variables' names. Default is True.
+
+    output_folder : str, optional
+      The folder to save the image. Default is 'imgs'.
+
+    output_file : str, optional
+      The name of the image. Default is 'flow_diagram'.
+
+    display_flow_diagram : bool, optional
+      Whether to display the flow diagram. Otherwise the result is just saved. Default is True.
+ 
+    """
+
     def __init__(self,
                  table_flows: TableFlows,
                  table_characteristics: TableCharacteristics = None,
@@ -1361,6 +1747,15 @@ class FlowDiagram:
 
 
     def view(self):
+        
+        """
+        
+        View the flow diagram of the cohort generation process.
+
+        Returns
+        -------
+        None
+        """
 
         # generate all auxiliary plots
         if self.plot_dists:
@@ -1458,4 +1853,6 @@ class FlowDiagram:
               s.node('legend')
         
         # Save and render the graph
-        dot.render(self.output_path, view=self.display, format='pdf')
+        dot.render(self.output_path, view=self.display, format='png')
+        # dot.render(self.output_path, view=self.display, format='svg')
+        # dot.render(self.output_path, view=self.display, format='pdf')
